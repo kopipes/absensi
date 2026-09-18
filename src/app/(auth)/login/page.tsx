@@ -56,7 +56,7 @@ export default function LoginPage() {
             <Fingerprint className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900">
-            Hadir<span className="text-brand-500">Bos</span>
+            Absen<span className="text-brand-500">si</span>
           </h1>
           <p className="text-slate-500 mt-1 text-sm">Sistem Absensi Karyawan Digital</p>
         </div>

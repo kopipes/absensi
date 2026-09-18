@@ -81,7 +81,7 @@ export default function Sidebar({ user }: { user: JWTPayload }) {
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-sm">
           <Fingerprint className="w-5 h-5 text-white" />
         </div>
-        <span className="text-lg font-bold text-slate-900">Hadir<span className="text-brand-500">Bos</span></span>
+        <span className="text-lg font-bold text-slate-900">Absen<span className="text-brand-500">si</span></span>
       </div>
 
       {/* User info */}
