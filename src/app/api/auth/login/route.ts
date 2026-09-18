@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    response.cookies.set('hadirbos_token', token, {
+    response.cookies.set('absensi_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

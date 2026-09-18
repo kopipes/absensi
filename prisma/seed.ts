@@ -43,8 +43,8 @@ async function main() {
     update: {},
     create: {
       nik: 'ADM001',
-      name: 'Admin HadirBos',
-      email: 'admin@hadirbos.id',
+      name: 'Admin Absensi',
+      email: 'admin@absensi.id',
       phone: '081200000001',
       position: 'HR Administrator',
       department: 'HR',
@@ -63,7 +63,7 @@ async function main() {
     create: {
       nik: 'MGR001',
       name: 'Budi Santoso',
-      email: 'budi@hadirbos.id',
+      email: 'budi@absensi.id',
       phone: '081200000002',
       position: 'Engineering Manager',
       department: 'Engineering',
@@ -82,7 +82,7 @@ async function main() {
     create: {
       nik: 'SPV001',
       name: 'Siti Rahayu',
-      email: 'siti@hadirbos.id',
+      email: 'siti@absensi.id',
       phone: '081200000003',
       position: 'Team Lead Frontend',
       department: 'Engineering',
@@ -97,11 +97,11 @@ async function main() {
   // Create employees
   const empPass = await bcrypt.hash('user123', 12);
   const employees = [
-    { nik: 'EMP001', name: 'Andi Wijaya', email: 'andi@hadirbos.id', phone: '081200000004', position: 'Frontend Developer' },
-    { nik: 'EMP002', name: 'Dewi Kusuma', email: 'dewi@hadirbos.id', phone: '081200000005', position: 'Backend Developer' },
-    { nik: 'EMP003', name: 'Fajar Nugroho', email: 'fajar@hadirbos.id', phone: '081200000006', position: 'QA Engineer' },
-    { nik: 'EMP004', name: 'Lina Permata', email: 'lina@hadirbos.id', phone: '081200000007', position: 'UI/UX Designer' },
-    { nik: 'EMP005', name: 'Rizky Pratama', email: 'rizky@hadirbos.id', phone: '081200000008', position: 'DevOps Engineer' },
+    { nik: 'EMP001', name: 'Andi Wijaya', email: 'andi@absensi.id', phone: '081200000004', position: 'Frontend Developer' },
+    { nik: 'EMP002', name: 'Dewi Kusuma', email: 'dewi@absensi.id', phone: '081200000005', position: 'Backend Developer' },
+    { nik: 'EMP003', name: 'Fajar Nugroho', email: 'fajar@absensi.id', phone: '081200000006', position: 'QA Engineer' },
+    { nik: 'EMP004', name: 'Lina Permata', email: 'lina@absensi.id', phone: '081200000007', position: 'UI/UX Designer' },
+    { nik: 'EMP005', name: 'Rizky Pratama', email: 'rizky@absensi.id', phone: '081200000008', position: 'DevOps Engineer' },
   ];
 
   for (const emp of employees) {
@@ -128,7 +128,7 @@ async function main() {
     create: {
       nik: 'MGR002',
       name: 'Hendra Gunawan',
-      email: 'hendra@hadirbos.id',
+      email: 'hendra@absensi.id',
       phone: '081200000009',
       position: 'Marketing Manager',
       department: 'Marketing',
@@ -151,7 +151,7 @@ async function main() {
       create: {
         nik: emp.nik,
         name: emp.name,
-        email: `${emp.nik.toLowerCase()}@hadirbos.id`,
+        email: `${emp.nik.toLowerCase()}@absensi.id`,
         department: 'Marketing',
         position: emp.position,
         role: 'USER',

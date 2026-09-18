@@ -1,6 +1,6 @@
 {
-  "name": "HadirBos",
-  "short_name": "HadirBos",
+  "name": "Absensi",
+  "short_name": "Absensi",
   "description": "Aplikasi Absensi Karyawan Digital",
   "start_url": "/",
   "display": "standalone",

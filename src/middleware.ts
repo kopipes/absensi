@@ -26,7 +26,7 @@ export async function middleware(req: NextRequest) {
   if (isPublic) return NextResponse.next();
 
   // Require auth token
-  const token = req.cookies.get('hadirbos_token')?.value;
+  const token = req.cookies.get('absensi_token')?.value;
   if (!token) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json(
@@ -46,7 +46,7 @@ export async function middleware(req: NextRequest) {
       );
     }
     const res = NextResponse.redirect(new URL('/login', req.url));
-    res.cookies.delete('hadirbos_token');
+    res.cookies.delete('absensi_token');
     return res;
   }
 

@@ -1,12 +1,12 @@
-# HadirBos — Aplikasi Absensi Karyawan Digital
+# Absensi — Aplikasi Absensi Karyawan Digital
 
-![HadirBos](https://img.shields.io/badge/HadirBos-v1.0-0ea5e9?style=for-the-badge)
+![Absensi](https://img.shields.io/badge/Absensi-v1.0-0ea5e9?style=for-the-badge)
 ![Next.js](https://img.shields.io/badge/Next.js-14-black?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=for-the-badge&logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-38bdf8?style=for-the-badge&logo=tailwindcss)
 ![Prisma](https://img.shields.io/badge/Prisma-5-2d3748?style=for-the-badge&logo=prisma)
 
-**HadirBos** adalah aplikasi absensi karyawan berbasis web/mobile yang memungkinkan karyawan melakukan check-in dan check-out mandiri menggunakan smartphone, dilengkapi verifikasi foto selfie, geotagging lokasi GPS, perhitungan keterlambatan & lembur otomatis, serta modul pelaporan dengan export Excel.
+**Absensi** adalah aplikasi absensi karyawan berbasis web/mobile yang memungkinkan karyawan melakukan check-in dan check-out mandiri menggunakan smartphone, dilengkapi verifikasi foto selfie, geotagging lokasi GPS, perhitungan keterlambatan & lembur otomatis, serta modul pelaporan dengan export Excel.
 
 ---
 
@@ -63,8 +63,8 @@
 
 ```bash
 # Clone repository
-git clone https://github.com/kopipes/hadirbos.git
-cd hadirbos
+git clone https://github.com/kopipes/absensi.git
+cd absensi
 
 # Install dependencies
 npm install
@@ -121,7 +121,7 @@ prisma/
 ├── schema.prisma              # Database schema
 └── seed.ts                    # Data seeder
 doc/
-└── PRD-HadirBos.md            # Product Requirements Document
+└── PRD-Absensi.md            # Product Requirements Document
 ```
 
 ---
@@ -175,14 +175,14 @@ npm run db:studio    # Prisma Studio (GUI database)
 ## Deploy
 
 SOT kode: GitHub (`main` branch)
-SOT database: VPS (SQLite di `/var/www/hadirbos/prisma/dev.db`)
+SOT database: VPS (SQLite di `/var/www/absensi/prisma/dev.db`)
 
 ```bash
 # Deploy ke VPS (jalankan di VPS)
-sudo bash /var/www/deploy-hadirbos.sh
+sudo bash /var/www/deploy-absensi.sh
 
 # Rollback
-sudo bash /var/www/deploy-hadirbos.sh rollback
+sudo bash /var/www/deploy-absensi.sh rollback
 ```
 
 Deploy script otomatis: backup kode & DB, pull GitHub, `npm install`, `prisma db push`, `next build`, restart service.

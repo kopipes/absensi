@@ -29,7 +29,7 @@ export default function TopBar({ user }: { user: JWTPayload }) {
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
             <span className="text-white text-xs font-bold">HB</span>
           </div>
-          <span className="font-bold text-slate-900">HadirBos</span>
+          <span className="font-bold text-slate-900">Absensi</span>
         </div>
 
         {/* Date - desktop */}

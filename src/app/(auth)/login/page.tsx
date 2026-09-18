@@ -128,7 +128,7 @@ export default function LoginPage() {
 
 
         <p className="text-center text-xs text-slate-400 mt-4">
-          © 2026 HadirBos. Versi 1.0
+          © 2026 Absensi. Versi 1.0
         </p>
       </div>
     </div>

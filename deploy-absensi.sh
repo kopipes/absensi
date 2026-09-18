@@ -1,20 +1,20 @@
 #!/bin/bash
-# HadirBos Safe Deploy Script
-# SOT: https://github.com/kopipes/hadirbos.git
+# Absensi Safe Deploy Script
+# SOT: https://github.com/kopipes/absensi.git
 # DB SOT: VPS (SQLite preserved across deploys)
 # Usage:
-#   sudo bash /var/www/deploy-hadirbos.sh          # deploy latest
-#   sudo bash /var/www/deploy-hadirbos.sh rollback  # rollback to last backup
+#   sudo bash /var/www/deploy-absensi.sh          # deploy latest
+#   sudo bash /var/www/deploy-absensi.sh rollback  # rollback to last backup
 
 set -e
 
-APP_DIR=/var/www/hadirbos
-BACKUP_DIR=/var/www/hadirbos-backups
+APP_DIR=/var/www/absensi
+BACKUP_DIR=/var/www/absensi-backups
 DB_FILE=$APP_DIR/prisma/dev.db
-REPO=https://github.com/kopipes/hadirbos.git
+REPO=https://github.com/kopipes/absensi.git
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 PORT=3002
-SERVICE=hadirbos
+SERVICE=absensi
 
 mkdir -p $BACKUP_DIR
 
@@ -49,7 +49,7 @@ if [ "$1" == "rollback" ]; then
 fi
 
 # ── FORWARD DEPLOY ─────────────────────────────────────────────────────────────
-echo "=== HadirBos Deploy $TIMESTAMP ==="
+echo "=== Absensi Deploy $TIMESTAMP ==="
 
 # 1. Backup current code (exclude DB and node_modules — too large)
 if [ -d "$APP_DIR/.git" ]; then
@@ -141,7 +141,7 @@ chown -R www-data:www-data $APP_DIR
 echo "10. Writing systemd service..."
 tee /etc/systemd/system/$SERVICE.service > /dev/null << SVCEOF
 [Unit]
-Description=HadirBos Attendance App
+Description=Absensi Attendance App
 After=network.target
 
 [Service]
@@ -180,9 +180,9 @@ echo "12. Cleaning old code backups (keeping last 5)..."
 ls -t $BACKUP_DIR | grep -E '^[0-9]{8}_' | tail -n +6 | xargs -I{} rm -rf "$BACKUP_DIR/{}"
 
 echo ""
-echo "=== HadirBos Deploy Complete! ==="
-echo "   App:      https://hadirbos.provaliantgroup.com"
+echo "=== Absensi Deploy Complete! ==="
+echo "   App:      https://absensi.provaliantgroup.com"
 echo "   Port:     $PORT"
 echo "   Logs:     journalctl -u $SERVICE -f"
 echo "   Status:   systemctl status $SERVICE"
-echo "   Rollback: sudo bash /var/www/deploy-hadirbos.sh rollback"
+echo "   Rollback: sudo bash /var/www/deploy-absensi.sh rollback"

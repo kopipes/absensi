@@ -1,15 +1,15 @@
 # PRD (Product Requirements Document)
-# HadirBos — Aplikasi Absensi Karyawan Berbasis Mobile
+# Absensi — Aplikasi Absensi Karyawan Berbasis Mobile
 
 **Versi:** 1.1 (Implemented)
 **Tanggal:** 24 Agustus 2026
-**Status:** Live — https://hadirbos.provaliantgroup.com
+**Status:** Live — https://absensi.provaliantgroup.com
 
 ---
 
 ## 1. Ringkasan Produk
 
-**HadirBos** adalah aplikasi absensi berbasis web/mobile yang memungkinkan karyawan melakukan absen masuk dan pulang menggunakan handphone masing-masing (self check-in), dilengkapi verifikasi foto diri dan geotagging lokasi, perhitungan keterlambatan dan lembur otomatis, serta modul pelaporan yang bisa difilter dan diexport ke Excel.
+**Absensi** adalah aplikasi absensi berbasis web/mobile yang memungkinkan karyawan melakukan absen masuk dan pulang menggunakan handphone masing-masing (self check-in), dilengkapi verifikasi foto diri dan geotagging lokasi, perhitungan keterlambatan dan lembur otomatis, serta modul pelaporan yang bisa difilter dan diexport ke Excel.
 
 ## 2. Tujuan (Objectives)
 
@@ -190,7 +190,7 @@
 | Camera | react-webcam |
 | Export | xlsx |
 | Hosting | VPS Cloudeka (103.92.215.251), Nginx + systemd, port 3002 |
-| Domain | hadirbos.provaliantgroup.com |
+| Domain | absensi.provaliantgroup.com |
 | Node.js | >= 20.0.0 |
 
 ## 9. Skema Database (Implemented)
@@ -303,7 +303,7 @@ Model utama di `prisma/schema.prisma`:
 
 ## 1. Ringkasan Produk
 
-**HadirBos** adalah aplikasi absensi berbasis web/mobile yang memungkinkan karyawan melakukan absen masuk dan pulang menggunakan handphone masing-masing (self check-in), dilengkapi verifikasi foto diri dan geotagging lokasi, perhitungan keterlambatan dan lembur otomatis, serta modul pelaporan yang bisa difilter dan diexport ke Excel.
+**Absensi** adalah aplikasi absensi berbasis web/mobile yang memungkinkan karyawan melakukan absen masuk dan pulang menggunakan handphone masing-masing (self check-in), dilengkapi verifikasi foto diri dan geotagging lokasi, perhitungan keterlambatan dan lembur otomatis, serta modul pelaporan yang bisa difilter dan diexport ke Excel.
 
 ## 2. Tujuan (Objectives)
 
@@ -540,4 +540,4 @@ Prinsip umum: **aplikasi tidak boleh gagal diam-diam (silent fail) atau crash ta
 
 ---
 
-*Dokumen ini sudah mencakup keputusan hasil diskusi (Bagian 12) dan skenario error handling & fallback (Bagian 14), sehingga siap dijadikan acuan pengembangan aplikasi HadirBos (MVP sesuai Bagian 11). Sisa pertanyaan minor di Bagian 13 tidak menghalangi mulainya pengembangan dan bisa diputuskan sambil jalan.*
+*Dokumen ini sudah mencakup keputusan hasil diskusi (Bagian 12) dan skenario error handling & fallback (Bagian 14), sehingga siap dijadikan acuan pengembangan aplikasi Absensi (MVP sesuai Bagian 11). Sisa pertanyaan minor di Bagian 13 tidak menghalangi mulainya pengembangan dan bisa diputuskan sambil jalan.*

@@ -7,7 +7,7 @@ import TopBar from '@/components/layout/TopBar';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
-  const token = cookieStore.get('hadirbos_token')?.value;
+  const token = cookieStore.get('absensi_token')?.value;
   if (!token) redirect('/login');
 
   const user = await verifyToken(token);

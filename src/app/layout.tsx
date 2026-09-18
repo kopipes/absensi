@@ -6,7 +6,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'HadirBos — Sistem Absensi Karyawan',
+  title: 'Absensi — Sistem Absensi Karyawan',
   description: 'Aplikasi absensi karyawan berbasis web dengan verifikasi foto dan lokasi.',
   manifest: '/manifest.json',
 };

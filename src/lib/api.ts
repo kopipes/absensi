@@ -3,7 +3,7 @@ import { verifyToken } from '@/lib/auth';
 
 export async function getAuthUser(req: NextRequest) {
   const token =
-    req.cookies.get('hadirbos_token')?.value ||
+    req.cookies.get('absensi_token')?.value ||
     req.headers.get('authorization')?.replace('Bearer ', '');
 
   if (!token) return null;
