@@ -18,6 +18,18 @@ SERVICE=absensi
 
 mkdir -p $BACKUP_DIR
 
+# WAL-safe DB backup: prefer sqlite3 .backup (consistent while the app is running),
+# fall back to cp only when sqlite3 is unavailable.
+backup_db() {
+  local dest="$1"
+  if command -v sqlite3 >/dev/null 2>&1; then
+    sqlite3 "$DB_FILE" ".backup '$dest'"
+  else
+    cp "$DB_FILE" "$dest"
+    echo "   WARNING: sqlite3 not found — used cp (may be inconsistent while WAL is active)"
+  fi
+}
+
 # Ensure git trusts this directory (avoids dubious ownership errors)
 git config --global --add safe.directory $APP_DIR 2>/dev/null || true
 
@@ -32,7 +44,7 @@ if [ "$1" == "rollback" ]; then
 
   # Preserve current DB before overwriting
   if [ -f "$DB_FILE" ]; then
-    cp "$DB_FILE" "$BACKUP_DIR/rollback-db-$TIMESTAMP.db"
+    backup_db "$BACKUP_DIR/rollback-db-$TIMESTAMP.db"
     echo "Current DB saved to $BACKUP_DIR/rollback-db-$TIMESTAMP.db"
   fi
 
@@ -69,7 +81,7 @@ fi
 # 2. Backup DB separately
 if [ -f "$DB_FILE" ]; then
   echo "2. Backing up database..."
-  cp "$DB_FILE" "$BACKUP_DIR/db-$TIMESTAMP.db"
+  backup_db "$BACKUP_DIR/db-$TIMESTAMP.db"
   echo "   DB backup: $BACKUP_DIR/db-$TIMESTAMP.db"
 fi
 
@@ -117,6 +129,15 @@ npx prisma generate
 # available via `deploy-absensi.sh rollback`.
 echo "6. Pushing DB schema (destructive drops accepted; DB already backed up)..."
 npx prisma db push --skip-generate --accept-data-loss
+
+# 7b. Enable WAL so concurrent absen reads/writes don't fail with "database is locked".
+# WAL persists in the DB file, so running this once is enough (idempotent).
+if command -v sqlite3 >/dev/null 2>&1; then
+  WAL_MODE=$(sqlite3 "$DB_FILE" "PRAGMA journal_mode=WAL;" 2>/dev/null || echo "")
+  echo "   SQLite journal_mode: ${WAL_MODE:-unknown}"
+else
+  echo "   WARNING: sqlite3 not found — install sqlite3 to enable WAL mode"
+fi
 
 # 8. Seed only if DB has no users (true first deploy)
 echo "7. Checking if seed needed..."

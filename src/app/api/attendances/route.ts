@@ -3,8 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
 import { calculateDistance, calculateLateMinutes, getTodayString } from '@/lib/utils';
 
-// Max base64 photo size ~5MB
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+// Max decoded photo size (1MB) — client compresses before upload
+const MAX_PHOTO_BYTES = 1 * 1024 * 1024;
 
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
@@ -70,8 +70,11 @@ export async function POST(req: NextRequest) {
     if (!photo || typeof photo !== 'string') {
       return badRequest('Foto selfie wajib disertakan.');
     }
+    if (!photo.startsWith('data:image/')) {
+      return badRequest('Format foto tidak valid.');
+    }
     if (photo.length > MAX_PHOTO_BYTES * 1.37) { // base64 overhead
-      return badRequest('Ukuran foto terlalu besar. Maksimal 5MB.');
+      return badRequest('Ukuran foto terlalu besar. Maksimal 1MB.');
     }
     if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
         isNaN(latitude) || isNaN(longitude) ||
