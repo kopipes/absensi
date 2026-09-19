@@ -15,21 +15,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Find by NIK, email, or phone
-    const user = await prisma.user.findFirst({
+    const identifier = String(login).trim();
+
+    // Find by NIK, email, or phone (exact match first — uses the NIK index)
+    let user = await prisma.user.findFirst({
       where: {
         isActive: true,
         OR: [
-          { nik: login },
-          { email: login },
-          { phone: login },
+          { nik: identifier },
+          { email: identifier },
+          { phone: identifier },
         ],
       },
     });
 
+    // Fallback: case-insensitive match (SQLite is case-sensitive by default)
+    if (!user) {
+      const matches = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM User
+        WHERE isActive = 1
+          AND (
+            nik = ${identifier} COLLATE NOCASE
+            OR email = ${identifier} COLLATE NOCASE
+            OR phone = ${identifier}
+          )
+        LIMIT 1
+      `;
+      if (matches.length > 0) {
+        user = await prisma.user.findUnique({ where: { id: matches[0].id } });
+      }
+    }
+
     if (!user) {
       return NextResponse.json(
-        { success: false, error: 'NIK/email atau password salah.' },
+        { success: false, error: 'NIK/email/no. HP atau password salah.' },
         { status: 401 }
       );
     }
@@ -37,7 +56,7 @@ export async function POST(req: NextRequest) {
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       return NextResponse.json(
-        { success: false, error: 'NIK/email atau password salah.' },
+        { success: false, error: 'NIK/email/no. HP atau password salah.' },
         { status: 401 }
       );
     }
