@@ -11,6 +11,7 @@ interface SummaryAttendance {
   userId: string;
   checkIn: Date | null;
   checkOut: Date | null;
+  isAutoCheckout: boolean;
   user?: { id: string; nik: string; name: string; department: string | null } | null;
 }
 
@@ -22,6 +23,7 @@ interface UserSummaryRow {
   totalDays: number;
   enoughDays: number;
   shortDays: number;
+  cutoffDays: number;
   incompleteDays: number;
   shortMinutes: number;
 }
@@ -41,13 +43,17 @@ function buildUserSummary(attendances: SummaryAttendance[]): UserSummaryRow[] {
       totalDays: 0,
       enoughDays: 0,
       shortDays: 0,
+      cutoffDays: 0,
       incompleteDays: 0,
       shortMinutes: 0,
     };
 
     row.totalDays += 1;
 
-    if (a.checkOut) {
+    if (a.isAutoCheckout && a.checkOut) {
+      // Checkout filled by the system: not a genuine complete day, tracked separately
+      row.cutoffDays += 1;
+    } else if (a.checkOut) {
       const worked = calculateWorkedMinutes(a.checkIn, a.checkOut);
       const shortage = calculateShortageMinutes(worked);
       if (shortage > 0) {
@@ -128,6 +134,7 @@ export async function GET(req: NextRequest) {
           'Total Hari Absen': s.totalDays,
           [`Hari >= ${STANDARD_LABEL}`]: s.enoughDays,
           [`Hari < ${STANDARD_LABEL}`]: s.shortDays,
+          Cutoff: s.cutoffDays,
           'Hari Belum Lengkap': s.incompleteDays,
           'Total Kekurangan (menit)': s.shortMinutes,
           'Total Kekurangan': s.shortMinutes > 0 ? formatMinutes(s.shortMinutes) : '-',
@@ -136,7 +143,7 @@ export async function GET(req: NextRequest) {
         const ws = XLSX.utils.json_to_sheet(summaryRows);
         ws['!cols'] = [
           { wch: 16 }, { wch: 26 }, { wch: 18 }, { wch: 16 }, { wch: 14 },
-          { wch: 14 }, { wch: 16 }, { wch: 22 }, { wch: 20 },
+          { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 22 }, { wch: 20 },
         ];
         XLSX.utils.book_append_sheet(wb, ws, 'Rekap per Karyawan');
         filename = `rekap-absensi-${safeStart}-${safeEnd}.xlsx`;
@@ -154,7 +161,7 @@ export async function GET(req: NextRequest) {
             'Jam Pulang': a.checkOut ? new Date(a.checkOut).toTimeString().slice(0, 5) : '-',
             Status: a.status,
             'Jam Kerja': a.checkIn && a.checkOut ? formatMinutes(worked) : '-',
-            [`Kurang dari ${STANDARD_LABEL}`]: a.checkIn && a.checkOut && shortage > 0 ? formatMinutes(shortage) : '-',
+            [`Kurang dari ${STANDARD_LABEL}`]: a.checkIn && a.checkOut && !a.isAutoCheckout && shortage > 0 ? formatMinutes(shortage) : '-',
             'Auto Cutoff': a.isAutoCheckout ? 'Ya' : 'Tidak',
             'Di Luar Radius': a.isOutOfRadius ? 'Ya' : 'Tidak',
             'Lokasi Masuk': a.checkInAddress || '',
@@ -197,6 +204,7 @@ export async function GET(req: NextRequest) {
         (a) =>
           !!a.checkIn &&
           !!a.checkOut &&
+          !a.isAutoCheckout &&
           calculateShortageMinutes(calculateWorkedMinutes(a.checkIn, a.checkOut)) > 0
       ).length,
       autoCutoff: attendances.filter((a) => a.isAutoCheckout).length,

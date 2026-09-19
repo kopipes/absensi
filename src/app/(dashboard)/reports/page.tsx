@@ -22,6 +22,7 @@ interface UserSummaryRow {
   totalDays: number;
   enoughDays: number;
   shortDays: number;
+  cutoffDays: number;
   incompleteDays: number;
   shortMinutes: number;
 }
@@ -208,6 +209,7 @@ export default function ReportsPage() {
                   <th className="text-right px-4 py-3">Total Hari Absen</th>
                   <th className="text-right px-4 py-3">Cukup 8 Jam</th>
                   <th className="text-right px-4 py-3">Kurang 8 Jam</th>
+                  <th className="text-right px-4 py-3">Cutoff</th>
                   <th className="text-right px-4 py-3">Belum Lengkap</th>
                   <th className="text-right px-5 py-3">Total Kekurangan</th>
                 </tr>
@@ -223,6 +225,7 @@ export default function ReportsPage() {
                     <td className="px-4 py-2.5 text-right font-semibold text-slate-800">{s.totalDays}</td>
                     <td className="px-4 py-2.5 text-right font-semibold text-green-700">{s.enoughDays}</td>
                     <td className="px-4 py-2.5 text-right font-semibold text-red-600">{s.shortDays}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-purple-600">{s.cutoffDays}</td>
                     <td className="px-4 py-2.5 text-right text-slate-500">{s.incompleteDays}</td>
                     <td className="px-5 py-2.5 text-right font-semibold text-orange-600">
                       {s.shortMinutes > 0 ? formatMinutes(s.shortMinutes) : '-'}
@@ -308,6 +311,11 @@ export default function ReportsPage() {
                             <MapPin size={10} /> Luar Radius
                           </span>
                         )}
+                        {a.isAutoCheckout && (
+                          <span className="badge w-fit bg-purple-50 text-purple-600 border-purple-200 text-xs">
+                            Auto Cutoff
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2.5">
@@ -316,7 +324,9 @@ export default function ReportsPage() {
                         : <span className="text-slate-400">-</span>}
                     </td>
                     <td className="px-4 py-2.5">
-                      {a.checkIn && a.checkOut ? (
+                      {a.isAutoCheckout && a.checkIn && a.checkOut ? (
+                        <span className="text-purple-600 text-xs font-medium">Auto cutoff</span>
+                      ) : a.checkIn && a.checkOut ? (
                         shortage > 0
                           ? <span className="font-semibold text-red-600">Kurang {formatMinutes(shortage)}</span>
                           : <span className="text-green-600">Cukup</span>
