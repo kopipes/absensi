@@ -149,18 +149,14 @@ else
   echo "   WARNING: sqlite3 not found — install sqlite3 to enable WAL mode"
 fi
 
-# 8. Seed only if DB has no users (true first deploy)
-echo "7. Checking if seed needed..."
-USER_COUNT=$(npx tsx -e "
-import { PrismaClient } from '@prisma/client';
-const p = new PrismaClient();
-p.user.count().then(n => { console.log(n); p.\$disconnect(); });
-" 2>/dev/null || echo "0")
-if [ "$USER_COUNT" = "0" ] || [ -z "$USER_COUNT" ]; then
-  echo "   Seeding database (first deploy)..."
+# 8. Seeding is opt-in only — demo accounts have known passwords and must not
+# reach production by default. Run with SEED_ON_FIRST_DEPLOY=1 to seed demo data.
+if [ "${SEED_ON_FIRST_DEPLOY:-0}" = "1" ]; then
+  echo "7. Seeding database (SEED_ON_FIRST_DEPLOY=1)..."
   npm run db:seed
 else
-  echo "   Skipping seed ($USER_COUNT users already exist)."
+  echo "7. Skipping seed (production-safe default)."
+  echo "   Create the first admin manually, or re-run with SEED_ON_FIRST_DEPLOY=1."
 fi
 
 # 9. Build Next.js
