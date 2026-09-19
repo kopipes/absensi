@@ -243,6 +243,35 @@ async function main() {
     }
   }
 
+  // Durable "belum lengkap" samples: dated outside the auto-cutoff lookback
+  // window (7 days) so the cron never fills them and the column can be tested.
+  const openDate = wibDate(8);
+  for (const nik of ['SAMPLE001', 'SAMPLE002']) {
+    const uid = userIds[nik];
+    const office = OFFICES[0];
+    await prisma.attendance.upsert({
+      where: { userId_date: { userId: uid, date: openDate } },
+      update: {
+        checkIn: at(openDate, '08:00'),
+        checkOut: null,
+        isAutoCheckout: false,
+        isOutOfRadius: false,
+        status: 'PRESENT',
+        notes: 'Belum absen pulang (di luar window cutoff, contoh data)',
+      },
+      create: {
+        userId: uid,
+        date: openDate,
+        checkIn: at(openDate, '08:00'),
+        status: 'PRESENT',
+        checkInLat: office.latitude,
+        checkInLng: office.longitude,
+        checkInAddress: office.address,
+        notes: 'Belum absen pulang (di luar window cutoff, contoh data)',
+      },
+    });
+  }
+
   // One pending correction to exercise the approval flow
   const target = await prisma.attendance.findUnique({
     where: { userId_date: { userId: userIds['SAMPLE002'], date: days[1] } },
@@ -282,6 +311,7 @@ async function main() {
   console.log(`Sample users: ${USERS.length} (roles: 13 USER, 1 MANAGER, 1 SPV)`);
   console.log(`Attendance rows created: ${created}, updated: ${updated} (dates: ${days.join(', ')})`);
   console.log(`Total attendance rows now: ${total}`);
+  console.log(`Extra open "belum lengkap" rows on ${openDate} (outside cutoff window): SAMPLE001, SAMPLE002`);
   console.log('Login examples: SAMPLE001 / ' + PASSWORD + '  |  SAMPLE014 (MANAGER) / ' + PASSWORD);
 }
 
