@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
-import { calculateDistance, calculateLateMinutes, calculateOvertimeMinutes, getTodayString } from '@/lib/utils';
+import { calculateDistance, calculateLateMinutes, getTodayString } from '@/lib/utils';
 
 // Max base64 photo size ~5MB
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { type, photo, latitude, longitude, address, reason } = body;
+    const { type, photo, latitude, longitude, address } = body;
 
     // Input validation
     if (!type || !['checkin', 'checkout'].includes(type)) {
@@ -176,13 +176,6 @@ export async function POST(req: NextRequest) {
       if (!existing) return badRequest('Anda belum melakukan absen masuk hari ini.');
       if (existing.checkOut) return badRequest('Anda sudah melakukan absen pulang hari ini.');
 
-      let isOvertime = false;
-      let overtimeMinutes = 0;
-      if (user.workSchedule) {
-        overtimeMinutes = calculateOvertimeMinutes(now, user.workSchedule.checkOutTime, user.workSchedule.overtimeAfter);
-        isOvertime = overtimeMinutes > 0;
-      }
-
       const attendance = await prisma.attendance.update({
         where: { id: existing.id },
         data: {
@@ -191,60 +184,9 @@ export async function POST(req: NextRequest) {
           checkOutLat: latitude,
           checkOutLng: longitude,
           checkOutAddress: address?.trim() || null,
-          isOvertime,
-          overtimeMinutes,
-          overtimeStatus: isOvertime ? 'PENDING' : 'NONE',
+          isAutoCheckout: false,
         },
       });
-
-      // Create OvertimeApproval + notify manager (or fallback to ADMIN) in one go
-      if (isOvertime) {
-        // If employee has no manager, notify any ADMIN instead
-        let notifyUserId = user.managerId;
-        if (!notifyUserId) {
-          const admin = await prisma.user.findFirst({
-            where: { role: 'ADMIN', isActive: true },
-            select: { id: true },
-            orderBy: { createdAt: 'asc' },
-          });
-          notifyUserId = admin?.id ?? null;
-        }
-
-        if (notifyUserId) {
-          await prisma.$transaction([
-            prisma.overtimeApproval.create({
-              data: {
-                attendanceId: attendance.id,
-                requestedById: authUser.userId,
-                overtimeMinutes,
-                reason: reason?.trim() || null,
-                status: 'PENDING',
-              },
-            }),
-            prisma.notification.create({
-              data: {
-                type: 'OVERTIME',
-                title: 'Pengajuan Lembur',
-                message: `${user.name} lembur ${overtimeMinutes} menit (pulang pukul ${now.toTimeString().slice(0, 5)})${reason ? `. Alasan: ${reason.trim()}` : ''}. Menunggu persetujuan Anda.`,
-                recipientId: notifyUserId,
-                senderId: authUser.userId,
-              },
-            }),
-          ]);
-        } else {
-          // No manager and no admin found — still create approval record
-          await prisma.overtimeApproval.create({
-            data: {
-              attendanceId: attendance.id,
-              requestedById: authUser.userId,
-              overtimeMinutes,
-              overtimeType: 'CHECKOUT_LATE',
-              reason: reason?.trim() || null,
-              status: 'PENDING',
-            },
-          });
-        }
-      }
 
       return ok(attendance, 'Absen pulang berhasil.');
     }

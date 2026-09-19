@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, X, Save, Users } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, X, Save, Users, Upload, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn, getRoleBadgeColor, getRoleLabel } from '@/lib/utils';
 import type { UserProfile, Office, WorkSchedule } from '@/types';
@@ -36,6 +36,8 @@ export default function AdminUsersPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     const [uRes, oRes, sRes, dRes] = await Promise.all([
@@ -131,6 +133,33 @@ export default function AdminUsersPage() {
     setDeleting(false);
   }
 
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/users/import', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) {
+        const { created, updated, skipped, errors } = data.data;
+        toast.success(`Import selesai: ${created} baru, ${updated} diperbarui, ${skipped} dilewati.`);
+        if (errors?.length) {
+          toast.error(`${errors.length} baris bermasalah. Contoh: ${errors[0]}`, { duration: 7000 });
+        }
+        await load();
+      } else {
+        toast.error(data.error || 'Gagal import karyawan.');
+      }
+    } catch {
+      toast.error('Gagal terhubung ke server.');
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  }
+
   const filtered = users.filter((u) =>
     !search ||
     u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -145,9 +174,32 @@ export default function AdminUsersPage() {
           <h1 className="page-title">Kelola Karyawan</h1>
           <p className="text-slate-500 text-sm mt-0.5">{users.length} karyawan terdaftar</p>
         </div>
-        <button onClick={openCreate} className="btn-primary">
-          <Plus size={16} /> Tambah Karyawan
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { window.location.href = '/api/users/import'; }}
+            className="btn-secondary btn-sm"
+            title="Unduh template Excel"
+          >
+            <Download size={14} /> Template
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="btn-secondary btn-sm"
+          >
+            <Upload size={14} /> {importing ? 'Mengimpor...' : 'Import Excel'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={handleImport}
+          />
+          <button onClick={openCreate} className="btn-primary btn-sm">
+            <Plus size={14} /> Tambah Karyawan
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -301,7 +353,7 @@ export default function AdminUsersPage() {
                 <div>
                   <label className="label">Jadwal Kerja</label>
                   <select className="input" value={form.workScheduleId} onChange={e => setForm(f => ({ ...f, workScheduleId: e.target.value }))}>
-                    <option value="">Pilih Jadwal</option>
+                    <option value="">Tidak Ada (opsional)</option>
                     {schedules.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>

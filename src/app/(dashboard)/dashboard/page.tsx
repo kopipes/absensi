@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import {
-  Users, Clock, TrendingUp, AlertCircle, CheckCircle2,
+  Users, Clock, AlertCircle, CheckCircle2,
   Calendar, ArrowRight, MapPin, Timer
 } from 'lucide-react';
 import { cn, formatDate, formatTime, getStatusBadgeColor, getStatusLabel } from '@/lib/utils';
@@ -14,11 +14,9 @@ interface DashboardStats {
   presentToday: number;
   lateToday: number;
   absentToday: number;
-  onLeaveToday: number;
-  overtimeToday: number;
   outOfRadiusToday: number;
+  autoCutoffToday: number;
   pendingCorrections: number;
-  pendingOvertime: number;
   todayAttendances: Attendance[];
 }
 
@@ -131,19 +129,16 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-          {(myAttendance.isLate || myAttendance.isOvertime || myAttendance.isOutOfRadius) && (
+          {(myAttendance.isLate || myAttendance.isOutOfRadius || myAttendance.isAutoCheckout) && (
             <div className="flex gap-2 mt-3 flex-wrap">
               {myAttendance.isLate && (
                 <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-lg">
                   Terlambat {myAttendance.lateMinutes} mnt
                 </span>
               )}
-              {myAttendance.isOvertime && (
+              {myAttendance.isAutoCheckout && (
                 <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-lg">
-                  Lembur {myAttendance.overtimeMinutes} mnt
-                  {myAttendance.overtimeStatus === 'PENDING' && ' (Menunggu)'}
-                  {myAttendance.overtimeStatus === 'APPROVED' && ' (Disetujui)'}
-                  {myAttendance.overtimeStatus === 'REJECTED' && ' (Ditolak)'}
+                  Pulang otomatis (cutoff)
                 </span>
               )}
               {myAttendance.isOutOfRadius && (
@@ -181,24 +176,15 @@ export default function DashboardPage() {
             <StatCard label="Tidak Hadir" value={stats.absentToday} icon={Timer} color="text-red-500 bg-red-50" />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard label="Lembur" value={stats.overtimeToday} icon={TrendingUp} color="text-purple-500 bg-purple-50" />
             <StatCard label="Diluar Radius" value={stats.outOfRadiusToday} icon={MapPin} color="text-orange-500 bg-orange-50" />
-            <Link href="/attendance?tab=corrections">
+            <StatCard label="Pulang Otomatis" value={stats.autoCutoffToday} icon={Timer} color="text-purple-500 bg-purple-50" />
+            <Link href="/corrections">
               <div className={cn('stat-card cursor-pointer hover:shadow-md transition-shadow', stats.pendingCorrections > 0 && 'border-yellow-200 bg-yellow-50/50')}>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2 bg-cyan-50">
                   <Calendar size={18} className="text-cyan-500" />
                 </div>
                 <p className="text-2xl font-bold text-slate-900">{stats.pendingCorrections}</p>
                 <p className="text-xs text-slate-500 font-medium">Koreksi Pending</p>
-              </div>
-            </Link>
-            <Link href="/overtime">
-              <div className={cn('stat-card cursor-pointer hover:shadow-md transition-shadow', stats.pendingOvertime > 0 && 'border-purple-200 bg-purple-50/50')}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2 bg-purple-50">
-                  <TrendingUp size={18} className="text-purple-500" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">{stats.pendingOvertime}</p>
-                <p className="text-xs text-slate-500 font-medium">Lembur Pending</p>
               </div>
             </Link>
           </div>

@@ -8,13 +8,13 @@ import type { WorkSchedule } from '@/types';
 
 interface ScheduleForm {
   name: string; checkInTime: string; checkOutTime: string;
-  gracePeriod: string; overtimeAfter: string; workDays: string;
+  gracePeriod: string; workDays: string;
   officeId: string; isActive: boolean;
 }
 
 const emptyForm: ScheduleForm = {
   name: '', checkInTime: '08:00', checkOutTime: '17:00',
-  gracePeriod: '15', overtimeAfter: '30', workDays: '1,2,3,4,5',
+  gracePeriod: '15', workDays: '1,2,3,4,5',
   officeId: '', isActive: true,
 };
 
@@ -52,7 +52,6 @@ export default function AdminWorkHoursPage() {
       checkInTime: s.checkInTime,
       checkOutTime: s.checkOutTime,
       gracePeriod: String(s.gracePeriod),
-      overtimeAfter: String(s.overtimeAfter),
       workDays: s.workDays,
       officeId: s.officeId || '',
       isActive: s.isActive,
@@ -80,7 +79,6 @@ export default function AdminWorkHoursPage() {
       body: JSON.stringify({
         ...form,
         gracePeriod: parseInt(form.gracePeriod) || 15,
-        overtimeAfter: parseInt(form.overtimeAfter) || 30,
         officeId: form.officeId || null,
       }),
     });
@@ -144,7 +142,6 @@ export default function AdminWorkHoursPage() {
                       <span>Masuk: <strong>{s.checkInTime}</strong></span>
                       <span>Pulang: <strong>{s.checkOutTime}</strong></span>
                       <span>Toleransi: <strong>{s.gracePeriod} mnt</strong></span>
-                      <span>Lembur setelah: <strong>{s.overtimeAfter} mnt</strong></span>
                     </div>
                     <div className="flex gap-1.5 mt-2 flex-wrap">
                       {[1,2,3,4,5,6,7].map((d) => (
@@ -198,15 +195,9 @@ export default function AdminWorkHoursPage() {
                   <input className="input" type="time" value={form.checkOutTime} onChange={e => setForm(f => ({ ...f, checkOutTime: e.target.value }))} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Toleransi Terlambat (mnt)</label>
-                  <input className="input" type="number" min="0" value={form.gracePeriod} onChange={e => setForm(f => ({ ...f, gracePeriod: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Lembur Setelah (mnt)</label>
-                  <input className="input" type="number" min="0" value={form.overtimeAfter} onChange={e => setForm(f => ({ ...f, overtimeAfter: e.target.value }))} />
-                </div>
+              <div>
+                <label className="label">Toleransi Terlambat (mnt)</label>
+                <input className="input" type="number" min="0" value={form.gracePeriod} onChange={e => setForm(f => ({ ...f, gracePeriod: e.target.value }))} />
               </div>
               <div>
                 <label className="label">Hari Kerja</label>

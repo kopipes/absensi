@@ -1,9 +1,11 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { calculateWorkedMinutes, calculateShortageMinutes, STANDARD_WORK_MINUTES, formatMinutes } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 
-const VALID_STATUSES = ['PRESENT', 'ABSENT', 'LEAVE', 'HOLIDAY', 'OFF'];
+const VALID_STATUSES = ['PRESENT', 'ABSENT', 'HOLIDAY', 'OFF'];
+const STANDARD_LABEL = formatMinutes(STANDARD_WORK_MINUTES);
 
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
@@ -50,25 +52,29 @@ export async function GET(req: NextRequest) {
     });
 
     if (format === 'xlsx') {
-      const rows = attendances.map((a) => ({
-        NIK: a.user?.nik || '',
-        Nama: a.user?.name || '',
-        Departemen: a.user?.department || '',
-        Jabatan: a.user?.position || '',
-        Tanggal: a.date,
-        'Jam Masuk': a.checkIn ? new Date(a.checkIn).toTimeString().slice(0, 5) : '-',
-        'Jam Pulang': a.checkOut ? new Date(a.checkOut).toTimeString().slice(0, 5) : '-',
-        Status: a.status,
-        Terlambat: a.isLate ? 'Ya' : 'Tidak',
-        'Menit Terlambat': a.lateMinutes,
-        Lembur: a.isOvertime ? 'Ya' : 'Tidak',
-        'Status Lembur': a.overtimeStatus,
-        'Menit Lembur': a.overtimeMinutes,
-        'Di Luar Radius': a.isOutOfRadius ? 'Ya' : 'Tidak',
-        'Lokasi Masuk': a.checkInAddress || '',
-        'Lokasi Pulang': a.checkOutAddress || '',
-        Catatan: a.notes || '',
-      }));
+      const rows = attendances.map((a) => {
+        const worked = calculateWorkedMinutes(a.checkIn, a.checkOut);
+        const shortage = calculateShortageMinutes(worked);
+        return {
+          NIK: a.user?.nik || '',
+          Nama: a.user?.name || '',
+          Departemen: a.user?.department || '',
+          Jabatan: a.user?.position || '',
+          Tanggal: a.date,
+          'Jam Masuk': a.checkIn ? new Date(a.checkIn).toTimeString().slice(0, 5) : '-',
+          'Jam Pulang': a.checkOut ? new Date(a.checkOut).toTimeString().slice(0, 5) : '-',
+          Status: a.status,
+          Terlambat: a.isLate ? 'Ya' : 'Tidak',
+          'Menit Terlambat': a.lateMinutes,
+          'Jam Kerja': a.checkIn && a.checkOut ? formatMinutes(worked) : '-',
+          [`Kurang dari ${STANDARD_LABEL}`]: a.checkIn && a.checkOut && shortage > 0 ? formatMinutes(shortage) : '-',
+          'Auto Cutoff': a.isAutoCheckout ? 'Ya' : 'Tidak',
+          'Di Luar Radius': a.isOutOfRadius ? 'Ya' : 'Tidak',
+          'Lokasi Masuk': a.checkInAddress || '',
+          'Lokasi Pulang': a.checkOutAddress || '',
+          Catatan: a.notes || '',
+        };
+      });
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(rows);
@@ -91,10 +97,11 @@ export async function GET(req: NextRequest) {
       total: attendances.length,
       present: attendances.filter((a) => a.status === 'PRESENT').length,
       absent: attendances.filter((a) => a.status === 'ABSENT').length,
-      leave: attendances.filter((a) => a.status === 'LEAVE').length,
       late: attendances.filter((a) => a.isLate).length,
-      overtime: attendances.filter((a) => a.isOvertime && a.overtimeStatus === 'APPROVED').length,
-      overtimePending: attendances.filter((a) => a.overtimeStatus === 'PENDING').length,
+      shortage: attendances.filter(
+        (a) => calculateShortageMinutes(calculateWorkedMinutes(a.checkIn, a.checkOut)) > 0
+      ).length,
+      autoCutoff: attendances.filter((a) => a.isAutoCheckout).length,
       outOfRadius: attendances.filter((a) => a.isOutOfRadius).length,
     };
 

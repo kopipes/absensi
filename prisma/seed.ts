@@ -30,7 +30,6 @@ async function main() {
       checkInTime: '08:00',
       checkOutTime: '17:00',
       gracePeriod: 15,
-      overtimeAfter: 30,
       workDays: '1,2,3,4,5',
       officeId: office.id,
     },
@@ -280,8 +279,6 @@ async function main() {
 
       const isLate = checkInHour > 8 || (checkInHour === 8 && checkInMin > 15);
       const lateMinutes = isLate ? (checkInHour - 8) * 60 + checkInMin - 15 : 0;
-      const isOvertime = checkOutHour > 17 || (checkOutHour === 17 && checkOutMin > 30);
-      const overtimeMinutes = isOvertime ? (checkOutHour - 17) * 60 + checkOutMin : 0;
 
       await prisma.attendance.create({
         data: {
@@ -297,8 +294,6 @@ async function main() {
           checkOutAddress: 'Jl. Sudirman No. 1, Jakarta',
           isLate,
           lateMinutes,
-          isOvertime,
-          overtimeMinutes,
           status: 'PRESENT',
         },
       });

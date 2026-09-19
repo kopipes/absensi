@@ -10,9 +10,9 @@ datasource db {
 }
 
 // Role: ADMIN | MANAGER | SPV | USER
-// AttendanceStatus: PRESENT | ABSENT | LEAVE | HOLIDAY | OFF
+// AttendanceStatus: PRESENT | ABSENT | HOLIDAY | OFF
 // CorrectionStatus: PENDING | APPROVED | REJECTED
-// NotificationType: LATE_CHECKIN | OUT_OF_RADIUS | OVERTIME | MISSING_CHECKOUT | CORRECTION_REQUEST | CORRECTION_APPROVED | CORRECTION_REJECTED | SYSTEM
+// NotificationType: LATE_CHECKIN | OUT_OF_RADIUS | MISSING_CHECKOUT | CORRECTION_REQUEST | CORRECTION_APPROVED | CORRECTION_REJECTED | SYSTEM
 
 model User {
   id         String   @id @default(cuid())
@@ -45,12 +45,6 @@ model User {
   notificationsSent     Notification[]       @relation("NotificationSender")
   corrections           AttendanceCorrection[] @relation("CorrectionBy")
   correctionRequests    AttendanceCorrection[] @relation("CorrectionFor")
-  overtimeRequests      OvertimeApproval[]   @relation("OvertimeRequested")
-  overtimeReviews       OvertimeApproval[]   @relation("OvertimeReviewed")
-  leaveRequests         LeaveRequest[]       @relation("LeaveUser")
-  leaveReviews          LeaveRequest[]       @relation("LeaveReviewer")
-  earlyLeaves           EarlyLeave[]         @relation("EarlyLeaveUser")
-  earlyLeaveReviews     EarlyLeave[]         @relation("EarlyLeaveReviewer")
 
   @@index([role])
   @@index([department])
@@ -79,7 +73,6 @@ model WorkSchedule {
   checkInTime   String   // "HH:mm"
   checkOutTime  String   // "HH:mm"
   gracePeriod   Int      @default(15)
-  overtimeAfter Int      @default(30)
   workDays      String   @default("1,2,3,4,5")
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -108,41 +101,16 @@ model Attendance {
   checkOutAddress String?
   isLate          Boolean  @default(false)
   lateMinutes     Int      @default(0)
-  isOvertime      Boolean  @default(false)
-  overtimeMinutes Int      @default(0)
-  overtimeStatus  String   @default("NONE") // NONE | PENDING | APPROVED | REJECTED
   isOutOfRadius   Boolean  @default(false)
+  isAutoCheckout  Boolean  @default(false) // true bila jam pulang diisi otomatis oleh sistem (cutoff)
   status          String   @default("PRESENT")
   notes           String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   corrections     AttendanceCorrection[]
-  overtimeApprovals OvertimeApproval[]
-  earlyLeave      EarlyLeave?
 
   @@unique([userId, date])
-}
-
-// OvertimeStatus: NONE | PENDING | APPROVED | REJECTED | PARTIAL
-// OvertimeType: CHECKOUT_LATE | CHECKIN_EARLY
-model OvertimeApproval {
-  id           String     @id @default(cuid())
-  attendanceId String
-  attendance   Attendance @relation(fields: [attendanceId], references: [id])
-  requestedById String
-  requestedBy  User       @relation("OvertimeRequested", fields: [requestedById], references: [id])
-  reviewedById  String?
-  reviewedBy   User?      @relation("OvertimeReviewed", fields: [reviewedById], references: [id])
-  overtimeMinutes Int
-  overtimeType String     @default("CHECKOUT_LATE") // CHECKOUT_LATE | CHECKIN_EARLY
-  reason       String?    // employee's reason for overtime
-  status       String     @default("PENDING")
-  notes        String?    // reviewer notes
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  @@index([attendanceId])
 }
 
 model AttendanceCorrection {
@@ -170,49 +138,6 @@ model Department {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-}
-
-// LeaveType: ANNUAL | SICK | MATERNITY | PATERNITY | PERMISSION | OTHER
-// LeaveStatus: PENDING | APPROVED | REJECTED | CANCELLED
-// EarlyLeaveStatus: PENDING | APPROVED | REJECTED
-model EarlyLeave {
-  id           String     @id @default(cuid())
-  userId       String
-  user         User       @relation("EarlyLeaveUser", fields: [userId], references: [id])
-  attendanceId String     @unique
-  attendance   Attendance @relation(fields: [attendanceId], references: [id])
-  reviewedById String?
-  reviewedBy   User?      @relation("EarlyLeaveReviewer", fields: [reviewedById], references: [id])
-  reason       String
-  estimatedOut String?    // "HH:mm" — estimated checkout time
-  status       String     @default("PENDING")
-  reviewNote   String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  @@index([userId])
-  @@index([status])
-}
-
-model LeaveRequest {
-  id           String   @id @default(cuid())
-  userId       String
-  user         User     @relation("LeaveUser", fields: [userId], references: [id])
-  reviewedById String?
-  reviewedBy   User?    @relation("LeaveReviewer", fields: [reviewedById], references: [id])
-  type         String   // ANNUAL | SICK | MATERNITY | PATERNITY | PERMISSION | OTHER
-  startDate    String   // YYYY-MM-DD
-  endDate      String   // YYYY-MM-DD
-  totalDays    Int
-  reason       String
-  status       String   @default("PENDING")
-  reviewNote   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@index([userId])
-  @@index([status])
-  @@index([startDate, endDate])
 }
 
 model Holiday {

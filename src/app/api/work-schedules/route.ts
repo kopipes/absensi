@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, checkInTime, checkOutTime, gracePeriod, overtimeAfter, workDays, officeId } = body;
+    const { name, checkInTime, checkOutTime, gracePeriod, workDays, officeId } = body;
     if (!name || !checkInTime || !checkOutTime) {
       return badRequest('Nama, jam masuk, dan jam pulang wajib diisi.');
     }
@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
         checkInTime,
         checkOutTime,
         gracePeriod: gracePeriod ?? 15,
-        overtimeAfter: overtimeAfter ?? 30,
         workDays: workDays || '1,2,3,4,5',
         officeId: officeId || null,
       },

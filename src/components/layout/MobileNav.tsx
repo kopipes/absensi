@@ -2,14 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Clock, Users, BarChart3, Bell, Palmtree } from 'lucide-react';
+import { LayoutDashboard, Clock, Users, BarChart3, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JWTPayload } from '@/lib/auth';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/attendance', label: 'Absen', icon: Clock },
-  { href: '/leave', label: 'Cuti', icon: Palmtree },
   { href: '/team', label: 'Tim', icon: Users, roles: ['ADMIN', 'MANAGER', 'SPV'] },
   { href: '/reports', label: 'Laporan', icon: BarChart3, roles: ['ADMIN', 'MANAGER', 'SPV'] },
   { href: '/notifications', label: 'Notifikasi', icon: Bell },

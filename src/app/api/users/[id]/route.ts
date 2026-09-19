@@ -19,9 +19,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       prisma.notification.deleteMany({
         where: { OR: [{ recipientId: params.id }, { senderId: params.id }] },
       }),
-      prisma.overtimeApproval.deleteMany({
-        where: { OR: [{ requestedById: params.id }, { reviewedById: params.id }] },
-      }),
       prisma.attendanceCorrection.deleteMany({
         where: { OR: [{ requestedById: params.id }, { approvedById: params.id }] },
       }),

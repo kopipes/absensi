@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       ? { managerId: authUser.userId }
       : {};
 
-    const [totalEmployees, todayAttendances, pendingCorrections, pendingOvertime] =
+    const [totalEmployees, todayAttendances, pendingCorrections] =
       await Promise.all([
         prisma.user.count({ where: { isActive: true, role: 'USER', ...whereTeam } }),
         prisma.attendance.findMany({
@@ -49,14 +49,6 @@ export async function GET(req: NextRequest) {
               : {}),
           },
         }),
-        prisma.overtimeApproval.count({
-          where: {
-            status: 'PENDING',
-            ...(authUser.role !== 'ADMIN'
-              ? { requestedBy: { managerId: authUser.userId } }
-              : {}),
-          },
-        }),
       ]);
 
     return ok({
@@ -64,11 +56,9 @@ export async function GET(req: NextRequest) {
       presentToday: todayAttendances.filter((a) => a.status === 'PRESENT').length,
       lateToday: todayAttendances.filter((a) => a.isLate).length,
       absentToday: todayAttendances.filter((a) => a.status === 'ABSENT').length,
-      onLeaveToday: todayAttendances.filter((a) => a.status === 'LEAVE').length,
-      overtimeToday: todayAttendances.filter((a) => a.isOvertime).length,
       outOfRadiusToday: todayAttendances.filter((a) => a.isOutOfRadius).length,
+      autoCutoffToday: todayAttendances.filter((a) => a.isAutoCheckout).length,
       pendingCorrections,
-      pendingOvertime,
       todayAttendances,
     });
   } catch (error) {

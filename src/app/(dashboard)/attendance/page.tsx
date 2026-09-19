@@ -1,20 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { CameraOff, MapPin, CheckCircle2, XCircle, Loader2, Clock, History, AlertTriangle, LogOut, X, Save, Edit2 } from 'lucide-react';
+import { CameraOff, MapPin, CheckCircle2, XCircle, Loader2, Clock, History, AlertTriangle, X, Save, Edit2 } from 'lucide-react';
 import Webcam from 'react-webcam';
 import toast from 'react-hot-toast';
 import { cn, formatTime, formatDate, getStatusBadgeColor, getStatusLabel } from '@/lib/utils';
 import type { Attendance } from '@/types';
 
 type Tab = 'checkin' | 'history';
-
-interface EarlyLeaveStatus {
-  id: string;
-  status: string; // PENDING | APPROVED | REJECTED
-  reason: string;
-  estimatedOut?: string | null;
-}
 
 export default function AttendancePage() {
   const [tab, setTab] = useState<Tab>('checkin');
@@ -28,34 +21,11 @@ export default function AttendancePage() {
   const [history, setHistory] = useState<Attendance[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [hasSchedule, setHasSchedule] = useState<boolean>(true);
-  const [scheduleEndTime, setScheduleEndTime] = useState<string>('17:00');
-  const [scheduleStartTime, setScheduleStartTime] = useState<string>('08:00');
-  const [overtimeAfterMinutes, setOvertimeAfterMinutes] = useState<number>(30);
-
-  // Manual overtime request state
-  const [showManualOvertimeModal, setShowManualOvertimeModal] = useState(false);
-  const [manualOvertimeTarget, setManualOvertimeTarget] = useState<Attendance | null>(null);
-  const [manualOvertimeMinutes, setManualOvertimeMinutes] = useState('');
-  const [manualOvertimeReason, setManualOvertimeReason] = useState('');
-  const [manualOvertimeType, setManualOvertimeType] = useState<'CHECKOUT_LATE' | 'CHECKIN_EARLY'>('CHECKOUT_LATE');
-  const [submittingManualOvertime, setSubmittingManualOvertime] = useState(false);
-
-  // Early leave state
-  const [earlyLeave, setEarlyLeave] = useState<EarlyLeaveStatus | null>(null);
-  const [showEarlyLeaveModal, setShowEarlyLeaveModal] = useState(false);
-  const [earlyLeaveReason, setEarlyLeaveReason] = useState('');
-  const [earlyLeaveEstTime, setEarlyLeaveEstTime] = useState('');
-  const [submittingEarlyLeave, setSubmittingEarlyLeave] = useState(false);
 
   // Correction state
   const [correctionTarget, setCorrectionTarget] = useState<Attendance | null>(null);
   const [correctionForm, setCorrectionForm] = useState({ newCheckIn: '', newCheckOut: '', reason: '' });
   const [submittingCorrection, setSubmittingCorrection] = useState(false);
-
-  // Overtime reason state
-  const [showOvertimeReasonModal, setShowOvertimeReasonModal] = useState(false);
-  const [overtimeReason, setOvertimeReason] = useState('');
-  const [pendingCheckout, setPendingCheckout] = useState(false);
 
   const webcamRef = useRef<Webcam>(null);
 
@@ -77,38 +47,10 @@ export default function AttendancePage() {
     fetch('/api/auth/me').then(r => r.json()).then(d => {
       if (d.success) {
         setHasSchedule(!!d.data.workScheduleId);
-        if (d.data.workSchedule?.checkOutTime) {
-          setScheduleEndTime(d.data.workSchedule.checkOutTime);
-        }
-        if (d.data.workSchedule?.checkInTime) {
-          setScheduleStartTime(d.data.workSchedule.checkInTime);
-        }
-        if (d.data.workSchedule?.overtimeAfter) {
-          setOvertimeAfterMinutes(d.data.workSchedule.overtimeAfter);
-        }
       }
     });
     getLocation();
   }, [loadTodayAttendance]);
-
-  // Load early leave status when attendance is loaded
-  useEffect(() => {
-    if (todayAttendance && !todayAttendance.checkOut) {
-      fetch('/api/early-leave?status=&self=true')
-        .then(r => r.json())
-        .then(d => {
-          if (d.success) {
-            const todayEL = d.data.find((el: EarlyLeaveStatus & { attendance: { id: string } }) =>
-              el.attendance?.id === todayAttendance.id
-            );
-            setEarlyLeave(todayEL || null);
-          }
-        })
-        .catch(() => {});
-    } else {
-      setEarlyLeave(null);
-    }
-  }, [todayAttendance]);
 
   async function loadHistory() {
     setHistoryLoading(true);
@@ -158,17 +100,6 @@ export default function AttendancePage() {
     );
   }
 
-  // Determine if current time is before scheduled end time (early checkout territory)
-  // Uses WIB (UTC+7) to match server timezone
-  function isEarlyCheckout(): boolean {
-    const nowUtc = Date.now();
-    const nowWib = new Date(nowUtc + 7 * 60 * 60 * 1000);
-    const [h, m] = scheduleEndTime.split(':').map(Number);
-    const endWib = new Date(nowWib);
-    endWib.setUTCHours(h, m, 0, 0);
-    return nowWib < endWib;
-  }
-
   // Get today's date string in WIB (UTC+7)
   function getTodayWib(): string {
     const nowWib = new Date(Date.now() + 7 * 60 * 60 * 1000);
@@ -176,33 +107,13 @@ export default function AttendancePage() {
   }
 
   const canCheckIn = !todayAttendance?.checkIn;
-  // Can checkout if: checked in, not checked out, AND (time is normal OR early leave approved)
-  const earlyLeaveApproved = earlyLeave?.status === 'APPROVED';
-  const canCheckOut = !!(todayAttendance?.checkIn && !todayAttendance?.checkOut &&
-    (!isEarlyCheckout() || earlyLeaveApproved || !hasSchedule));
+  const canCheckOut = !!(todayAttendance?.checkIn && !todayAttendance?.checkOut);
 
-  async function handleAttendance(type: 'checkin' | 'checkout', overtimeReasonText?: string) {
+  async function handleAttendance(type: 'checkin' | 'checkout') {
     if (!location) { toast.error('Lokasi belum terdeteksi. Tap "Perbarui Lokasi".'); return; }
     if (!webcamRef.current) { toast.error('Kamera belum siap.'); return; }
     const photo = webcamRef.current.getScreenshot();
     if (!photo) { toast.error('Gagal mengambil foto. Pastikan kamera aktif.'); return; }
-
-    // If checkout and will be overtime, show reason modal first
-    if (type === 'checkout' && hasSchedule && isEarlyCheckout() === false) {
-      // Check if this checkout will trigger overtime
-      const now = new Date();
-      const [h, m] = scheduleEndTime.split(':').map(Number);
-      const schedEnd = new Date(now);
-      schedEnd.setHours(h, m, 0, 0);
-      const thresholdMs = schedEnd.getTime() + overtimeAfterMinutes * 60_000;
-      const willBeOvertime = now.getTime() > thresholdMs;
-
-      if (willBeOvertime && overtimeReasonText === undefined) {
-        // Show modal to collect reason
-        setShowOvertimeReasonModal(true);
-        return;
-      }
-    }
 
     setLoading(true);
     try {
@@ -214,14 +125,11 @@ export default function AttendancePage() {
           latitude: location.lat,
           longitude: location.lng,
           address: location.address,
-          reason: overtimeReasonText || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) { toast.error(data.error || 'Absen gagal.'); return; }
       toast.success(type === 'checkin' ? 'Absen masuk berhasil!' : 'Absen pulang berhasil!');
-      setShowOvertimeReasonModal(false);
-      setOvertimeReason('');
       await loadTodayAttendance();
     } catch {
       toast.error('Gagal terhubung ke server.');
@@ -269,76 +177,6 @@ export default function AttendancePage() {
     }
   }
 
-  async function handleManualOvertimeSubmit() {
-    if (!manualOvertimeTarget) return;
-    const minutes = parseInt(manualOvertimeMinutes, 10);
-    if (!minutes || minutes <= 0) { toast.error('Durasi lembur harus lebih dari 0 menit.'); return; }
-    if (!manualOvertimeReason.trim()) { toast.error('Alasan lembur wajib diisi.'); return; }
-    setSubmittingManualOvertime(true);
-    try {
-      const res = await fetch('/api/overtime', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: manualOvertimeTarget.date,
-          overtimeMinutes: minutes,
-          reason: manualOvertimeReason.trim(),
-          overtimeType: manualOvertimeType,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success('Pengajuan lembur berhasil dikirim!');
-        setShowManualOvertimeModal(false);
-        setManualOvertimeTarget(null);
-        setManualOvertimeMinutes('');
-        setManualOvertimeReason('');
-        await loadHistory();
-      } else {
-        toast.error(data.error || 'Gagal mengajukan lembur.');
-      }
-    } catch {
-      toast.error('Gagal terhubung ke server.');
-    } finally {
-      setSubmittingManualOvertime(false);
-    }
-  }
-
-  async function handleEarlyLeaveSubmit() {
-    if (!earlyLeaveReason.trim()) { toast.error('Alasan wajib diisi.'); return; }
-    setSubmittingEarlyLeave(true);
-    try {
-      const res = await fetch('/api/early-leave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: earlyLeaveReason, estimatedOut: earlyLeaveEstTime || undefined }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success('Pengajuan izin pulang awal berhasil dikirim!');
-        setShowEarlyLeaveModal(false);
-        setEarlyLeaveReason('');
-        setEarlyLeaveEstTime('');
-        // Reload to get updated early leave status
-        await loadTodayAttendance();
-      } else {
-        toast.error(data.error || 'Gagal mengajukan izin.');
-      }
-    } catch {
-      toast.error('Gagal terhubung ke server.');
-    } finally {
-      setSubmittingEarlyLeave(false);
-    }
-  }
-
-  const showEarlyLeaveButton = !!(
-    todayAttendance?.checkIn &&
-    !todayAttendance?.checkOut &&
-    hasSchedule &&
-    isEarlyCheckout() &&
-    !earlyLeave
-  );
-
   return (
     <div className="max-w-lg mx-auto space-y-4">
       {/* Tabs */}
@@ -376,6 +214,11 @@ export default function AttendancePage() {
                         Terlambat {todayAttendance.lateMinutes} mnt
                       </span>
                     )}
+                    {todayAttendance.isAutoCheckout && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                        Pulang otomatis (cutoff 19:00)
+                      </span>
+                    )}
                     {todayAttendance.isOutOfRadius && (
                       <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
                         <AlertTriangle size={11} /> Di luar radius
@@ -387,41 +230,16 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {/* Early leave status banner */}
-          {earlyLeave && (
-            <div className={cn('card border flex items-start gap-3',
-              earlyLeave.status === 'PENDING' ? 'bg-yellow-50 border-yellow-200' :
-              earlyLeave.status === 'APPROVED' ? 'bg-green-50 border-green-200' :
-              'bg-red-50 border-red-200')}>
-              <LogOut size={18} className={cn('flex-shrink-0 mt-0.5',
-                earlyLeave.status === 'PENDING' ? 'text-yellow-500' :
-                earlyLeave.status === 'APPROVED' ? 'text-green-500' : 'text-red-500')} />
-              <div>
-                <p className={cn('text-sm font-semibold',
-                  earlyLeave.status === 'PENDING' ? 'text-yellow-800' :
-                  earlyLeave.status === 'APPROVED' ? 'text-green-800' : 'text-red-800')}>
-                  {earlyLeave.status === 'PENDING' && 'Izin pulang awal menunggu persetujuan'}
-                  {earlyLeave.status === 'APPROVED' && 'Izin pulang awal disetujui — silakan absen pulang'}
-                  {earlyLeave.status === 'REJECTED' && 'Izin pulang awal ditolak'}
-                </p>
-                <p className="text-xs mt-0.5 text-slate-600">Alasan: {earlyLeave.reason}</p>
-                {earlyLeave.estimatedOut && (
-                  <p className="text-xs text-slate-500">Est. pulang: {earlyLeave.estimatedOut}</p>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* No schedule warning */}
           {!hasSchedule && (
             <div className="flex items-start gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-800">
               <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
-              <p>Jadwal kerja belum diatur. Absensi tetap bisa dilakukan, namun keterlambatan dan lembur tidak akan dihitung otomatis. Hubungi admin.</p>
+              <p>Jadwal kerja belum diatur (opsional). Absensi tetap bisa dilakukan, namun keterlambatan tidak akan dihitung otomatis.</p>
             </div>
           )}
 
           {/* Camera */}
-            <div className="card p-0 overflow-hidden">
+          <div className="card p-0 overflow-hidden">
             <div className="relative bg-slate-900 aspect-[4/3] max-h-64 sm:max-h-none flex items-center justify-center">
               {!cameraError ? (
                 <Webcam
@@ -502,23 +320,9 @@ export default function AttendancePage() {
             </button>
           </div>
 
-          {/* Early checkout blocked hint */}
-          {todayAttendance?.checkIn && !todayAttendance?.checkOut && hasSchedule && isEarlyCheckout() && !earlyLeaveApproved && (
-            <p className="text-center text-xs text-slate-500 bg-gray-50 rounded-xl py-2 px-3">
-              Belum waktunya pulang (jadwal: {scheduleEndTime}). Ajukan izin pulang awal jika perlu.
-            </p>
-          )}
-
-          {/* Izin pulang awal button */}
-          {showEarlyLeaveButton && (
-            <button
-              onClick={() => setShowEarlyLeaveModal(true)}
-              className="w-full btn-secondary flex items-center justify-center gap-2 py-3"
-            >
-              <LogOut size={16} />
-              Ajukan Izin Pulang Awal
-            </button>
-          )}
+          <p className="text-center text-xs text-slate-400">
+            Lupa absen pulang? Sistem otomatis mencatat jam pulang pukul 19:00 WIB (cutoff).
+          </p>
 
           {!cameraReady && !cameraError && (
             <p className="text-center text-xs text-slate-400">Memuat kamera, harap tunggu...</p>
@@ -550,10 +354,7 @@ export default function AttendancePage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={cn('badge', getStatusBadgeColor(a.status))}>{getStatusLabel(a.status)}</span>
                       {a.isLate && <span className="badge bg-yellow-50 text-yellow-700 border-yellow-200">Terlambat</span>}
-                      {a.isOvertime && a.overtimeStatus === 'PENDING' && <span className="badge bg-yellow-50 text-yellow-700 border-yellow-200">Lembur (Menunggu)</span>}
-                      {a.isOvertime && a.overtimeStatus === 'APPROVED' && <span className="badge bg-purple-50 text-purple-700 border-purple-200">Lembur (Disetujui)</span>}
-                      {a.isOvertime && a.overtimeStatus === 'REJECTED' && <span className="badge bg-red-50 text-red-700 border-red-200">Lembur (Ditolak)</span>}
-                      {a.notes?.includes('Izin pulang awal') && <span className="badge bg-blue-50 text-blue-700 border-blue-200">Izin Pulang Awal</span>}
+                      {a.isAutoCheckout && <span className="badge bg-purple-50 text-purple-700 border-purple-200">Pulang Otomatis</span>}
                     </div>
                     <div className="flex gap-4 mt-1.5 text-sm text-slate-600">
                       <span>Masuk: <strong>{a.checkIn ? formatTime(a.checkIn) : '-'}</strong></span>
@@ -577,76 +378,11 @@ export default function AttendancePage() {
                     >
                       <Edit2 size={14} />
                     </button>
-                    {/* Manual overtime button — show if checked out and no overtime approval yet */}
-                    {a.checkOut && a.overtimeStatus === 'NONE' && (
-                      <button
-                        onClick={() => {
-                          setManualOvertimeTarget(a);
-                          setManualOvertimeMinutes('');
-                          setManualOvertimeReason('');
-                          setManualOvertimeType('CHECKOUT_LATE');
-                          setShowManualOvertimeModal(true);
-                        }}
-                        className="btn-ghost btn-sm p-1.5 text-slate-400 hover:text-purple-500"
-                        title="Ajukan lembur manual"
-                      >
-                        <Clock size={14} />
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
             ))
           )}
-        </div>
-      )}
-
-      {/* Overtime Reason Modal */}
-      {showOvertimeReasonModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto animate-slide-up">
-            <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">Keterangan Lembur</h2>
-                <p className="text-sm text-slate-500">Anda pulang melebihi jam kerja</p>
-              </div>
-              <button onClick={() => setShowOvertimeReasonModal(false)} className="btn-ghost p-1.5"><X size={18} /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-start gap-2 p-3 bg-purple-50 rounded-xl text-sm text-purple-700">
-                <AlertTriangle size={15} className="flex-shrink-0 mt-0.5" />
-                <p>Lembur Anda akan otomatis diajukan ke atasan untuk disetujui. Isi alasan lembur agar atasan bisa memproses dengan lebih cepat.</p>
-              </div>
-              <div>
-                <label className="label">Alasan Lembur (opsional)</label>
-                <textarea
-                  className="input"
-                  rows={3}
-                  value={overtimeReason}
-                  onChange={e => setOvertimeReason(e.target.value)}
-                  placeholder="Contoh: Menyelesaikan laporan bulanan, meeting dengan klien..."
-                  maxLength={300}
-                  autoFocus
-                />
-                <p className="text-xs text-slate-400 mt-1 text-right">{overtimeReason.length}/300</p>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => setShowOvertimeReasonModal(false)}
-                  className="btn-secondary flex-1"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={() => handleAttendance('checkout', overtimeReason)}
-                  disabled={loading}
-                  className="btn-primary flex-1"
-                >
-                  {loading ? <><Loader2 size={15} className="animate-spin" /> Memproses...</> : 'Absen Pulang'}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -716,168 +452,6 @@ export default function AttendancePage() {
                   className="btn-primary flex-1"
                 >
                   <Save size={15} /> {submittingCorrection ? 'Mengirim...' : 'Kirim Koreksi'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Early Leave Request Modal */}
-      {showEarlyLeaveModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto animate-slide-up">
-            <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-900">Ajukan Izin Pulang Awal</h2>
-              <button onClick={() => setShowEarlyLeaveModal(false)} className="btn-ghost p-1.5"><X size={18} /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-xl text-sm text-blue-700">
-                <AlertTriangle size={15} className="flex-shrink-0 mt-0.5" />
-                <p>Pengajuan akan langsung dikirim ke atasan Anda. Tombol absen pulang akan aktif setelah disetujui.</p>
-              </div>
-
-              <div>
-                <label className="label">Alasan *</label>
-                <textarea
-                  className="input"
-                  rows={3}
-                  value={earlyLeaveReason}
-                  onChange={e => setEarlyLeaveReason(e.target.value)}
-                  placeholder="Contoh: Anak sakit, harus ke dokter..."
-                  maxLength={300}
-                  autoFocus
-                />
-                <p className="text-xs text-slate-400 mt-1 text-right">{earlyLeaveReason.length}/300</p>
-              </div>
-
-              <div>
-                <label className="label">Estimasi Jam Pulang (opsional)</label>
-                <input
-                  type="time"
-                  className="input"
-                  value={earlyLeaveEstTime}
-                  onChange={e => setEarlyLeaveEstTime(e.target.value)}
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowEarlyLeaveModal(false)} className="btn-secondary flex-1">Batal</button>
-                <button
-                  onClick={handleEarlyLeaveSubmit}
-                  disabled={submittingEarlyLeave || !earlyLeaveReason.trim()}
-                  className="btn-primary flex-1"
-                >
-                  <Save size={15} /> {submittingEarlyLeave ? 'Mengirim...' : 'Kirim Pengajuan'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Manual Overtime Request Modal */}
-      {showManualOvertimeModal && manualOvertimeTarget && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto animate-slide-up">
-            <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">Ajukan Lembur Manual</h2>
-                <p className="text-sm text-slate-500">{formatDate(manualOvertimeTarget.date, 'dd MMM yyyy')}</p>
-              </div>
-              <button onClick={() => setShowManualOvertimeModal(false)} className="btn-ghost p-1.5"><X size={18} /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-start gap-2 p-3 bg-purple-50 rounded-xl text-sm text-purple-700">
-                <AlertTriangle size={15} className="flex-shrink-0 mt-0.5" />
-                <p>Pengajuan lembur manual akan dikirim ke atasan untuk disetujui. Alasan wajib diisi.</p>
-              </div>
-
-              {/* Overtime type toggle */}
-              <div>
-                <label className="label">Jenis Lembur</label>
-                <div className="flex bg-gray-100 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setManualOvertimeType('CHECKOUT_LATE');
-                      setManualOvertimeMinutes('');
-                    }}
-                    className={cn(
-                      'flex-1 py-2 rounded-lg text-sm font-semibold transition-all',
-                      manualOvertimeType === 'CHECKOUT_LATE'
-                        ? 'bg-white shadow-sm text-slate-900'
-                        : 'text-slate-500'
-                    )}
-                  >
-                    Pulang Terlambat
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setManualOvertimeType('CHECKIN_EARLY');
-                      // Auto-suggest duration from checkIn vs scheduleStartTime
-                      if (manualOvertimeTarget?.checkIn) {
-                        const checkInDate = new Date(manualOvertimeTarget.checkIn);
-                        const [h, m] = scheduleStartTime.split(':').map(Number);
-                        const scheduled = new Date(checkInDate);
-                        scheduled.setHours(h, m, 0, 0);
-                        const diffMin = Math.round((scheduled.getTime() - checkInDate.getTime()) / 60000);
-                        if (diffMin > 0) setManualOvertimeMinutes(String(diffMin));
-                      }
-                    }}
-                    className={cn(
-                      'flex-1 py-2 rounded-lg text-sm font-semibold transition-all',
-                      manualOvertimeType === 'CHECKIN_EARLY'
-                        ? 'bg-white shadow-sm text-slate-900'
-                        : 'text-slate-500'
-                    )}
-                  >
-                    Datang Lebih Awal
-                  </button>
-                </div>
-                {/* Context info */}
-                <p className="text-xs text-slate-400 mt-1.5">
-                  {manualOvertimeType === 'CHECKIN_EARLY'
-                    ? `Jadwal masuk: ${scheduleStartTime}${manualOvertimeTarget?.checkIn ? ` · Absen masuk: ${new Date(manualOvertimeTarget.checkIn).toTimeString().slice(0, 5)}` : ''}`
-                    : `Jadwal pulang: ${scheduleEndTime}${manualOvertimeTarget?.checkOut ? ` · Absen pulang: ${new Date(manualOvertimeTarget.checkOut).toTimeString().slice(0, 5)}` : ''}`}
-                </p>
-              </div>
-
-              <div>
-                <label className="label">Durasi Lembur (menit)</label>
-                <input
-                  type="number"
-                  className="input"
-                  min={1}
-                  max={480}
-                  value={manualOvertimeMinutes}
-                  onChange={e => setManualOvertimeMinutes(e.target.value)}
-                  placeholder="Contoh: 60"
-                />
-              </div>
-              <div>
-                <label className="label">Alasan Lembur (wajib)</label>
-                <textarea
-                  className="input"
-                  rows={3}
-                  value={manualOvertimeReason}
-                  onChange={e => setManualOvertimeReason(e.target.value)}
-                  placeholder={manualOvertimeType === 'CHECKIN_EARLY'
-                    ? 'Contoh: Persiapan presentasi pagi, setup server sebelum jam kerja...'
-                    : 'Contoh: Menyelesaikan laporan bulanan, meeting dengan klien...'}
-                  maxLength={300}
-                  autoFocus
-                />
-                <p className="text-xs text-slate-400 mt-1 text-right">{manualOvertimeReason.length}/300</p>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowManualOvertimeModal(false)} className="btn-secondary flex-1">Batal</button>
-                <button
-                  onClick={handleManualOvertimeSubmit}
-                  disabled={submittingManualOvertime || !manualOvertimeMinutes || !manualOvertimeReason.trim()}
-                  className="btn-primary flex-1"
-                >
-                  <Save size={15} /> {submittingManualOvertime ? 'Mengirim...' : 'Kirim Pengajuan'}
                 </button>
               </div>
             </div>

@@ -92,23 +92,25 @@ export function calculateLateMinutes(
   return Math.floor((zoned.getTime() - scheduled.getTime()) / 60_000);
 }
 
-/**
- * Calculate overtime minutes after checkout.
- * scheduledTime is "HH:mm" in WIB.
- */
-export function calculateOvertimeMinutes(
-  checkOutTime: Date,
-  scheduledTime: string,
-  overtimeAfter: number
-): number {
-  const [h, m] = scheduledTime.split(':').map(Number);
-  const zoned = toZonedTime(checkOutTime, TZ);
-  const scheduled = new Date(zoned);
-  scheduled.setHours(h, m, 0, 0);
+/** Standard working day in minutes (8 hours). */
+export const STANDARD_WORK_MINUTES = 8 * 60;
 
-  const threshold = scheduled.getTime() + overtimeAfter * 60_000;
-  if (zoned.getTime() <= threshold) return 0;
-  return Math.floor((zoned.getTime() - scheduled.getTime()) / 60_000);
+/** Minutes actually worked between check-in and check-out (0 if incomplete/invalid). */
+export function calculateWorkedMinutes(
+  checkIn: Date | string | null | undefined,
+  checkOut: Date | string | null | undefined
+): number {
+  if (!checkIn || !checkOut) return 0;
+  const start = typeof checkIn === 'string' ? new Date(checkIn) : checkIn;
+  const end = typeof checkOut === 'string' ? new Date(checkOut) : checkOut;
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+  const diff = Math.floor((end.getTime() - start.getTime()) / 60_000);
+  return diff > 0 ? diff : 0;
+}
+
+/** Shortfall against the standard 8-hour day (0 when met or exceeded). */
+export function calculateShortageMinutes(workedMinutes: number): number {
+  return Math.max(0, STANDARD_WORK_MINUTES - workedMinutes);
 }
 
 export function getRoleBadgeColor(role: string): string {

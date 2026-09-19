@@ -79,7 +79,6 @@ export default function TeamPage() {
             <option value="">Semua Status</option>
             <option value="PRESENT">Hadir</option>
             <option value="ABSENT">Tidak Hadir</option>
-            <option value="LEAVE">Cuti</option>
           </select>
         </div>
       </div>
@@ -89,7 +88,7 @@ export default function TeamPage() {
         {[
           { label: 'Hadir', count: filtered.filter(a => a.status === 'PRESENT').length, color: 'bg-green-50 text-green-700' },
           { label: 'Terlambat', count: filtered.filter(a => a.isLate).length, color: 'bg-yellow-50 text-yellow-700' },
-          { label: 'Lembur', count: filtered.filter(a => a.isOvertime).length, color: 'bg-purple-50 text-purple-700' },
+          { label: 'Pulang Otomatis', count: filtered.filter(a => a.isAutoCheckout).length, color: 'bg-purple-50 text-purple-700' },
           { label: 'Diluar Radius', count: filtered.filter(a => a.isOutOfRadius).length, color: 'bg-orange-50 text-orange-700' },
         ].map((s) => (
           <div key={s.label} className={cn('rounded-xl px-3 py-2 text-center', s.color)}>
@@ -150,8 +149,8 @@ export default function TeamPage() {
                       <span className="font-semibold text-slate-800">
                         {a.checkOut ? formatTime(a.checkOut) : '-'}
                       </span>
-                      {a.isOvertime && (
-                        <span className="ml-1.5 text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full">OT {a.overtimeMinutes}m</span>
+                      {a.isAutoCheckout && (
+                        <span className="ml-1.5 text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full">Auto</span>
                       )}
                     </td>
                     <td className="px-4 py-3">

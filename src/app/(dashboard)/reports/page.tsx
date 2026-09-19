@@ -3,12 +3,15 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Download, Search, BarChart3, Filter, MapPin, X, ExternalLink, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { cn, formatDate, formatTime, getStatusBadgeColor, getStatusLabel, formatMinutes } from '@/lib/utils';
+import {
+  cn, formatDate, formatTime, getStatusBadgeColor, getStatusLabel, formatMinutes,
+  calculateWorkedMinutes, calculateShortageMinutes, STANDARD_WORK_MINUTES,
+} from '@/lib/utils';
 import type { Attendance } from '@/types';
 
 interface Stats {
   total: number; present: number; absent: number;
-  leave: number; late: number; overtime: number; outOfRadius: number; overtimePending: number;
+  late: number; shortage: number; autoCutoff: number; outOfRadius: number;
 }
 
 export default function ReportsPage() {
@@ -139,9 +142,9 @@ export default function ReportsPage() {
             { label: 'Hadir',          value: stats.present,     color: 'text-green-700 bg-green-50' },
             { label: 'Terlambat',      value: stats.late,        color: 'text-yellow-700 bg-yellow-50' },
             { label: 'Tidak Hadir',    value: stats.absent,      color: 'text-red-700 bg-red-50' },
-            { label: 'Cuti',           value: stats.leave,       color: 'text-blue-700 bg-blue-50' },
-            { label: 'Lembur Disetujui', value: stats.overtime,  color: 'text-purple-700 bg-purple-50' },
-            { label: 'Luar Radius',    value: stats.outOfRadius, color: 'text-orange-700 bg-orange-50' },
+            { label: 'Kurang Jam Kerja', value: stats.shortage,  color: 'text-orange-700 bg-orange-50' },
+            { label: 'Pulang Otomatis', value: stats.autoCutoff, color: 'text-purple-700 bg-purple-50' },
+            { label: 'Luar Radius',    value: stats.outOfRadius, color: 'text-sky-700 bg-sky-50' },
             { label: '% Kehadiran',    value: stats.total ? Math.round((stats.present / stats.total) * 100) + '%' : '-', color: 'text-sky-700 bg-sky-50' },
           ].map((s) => (
             <div key={s.label} className={cn('rounded-xl px-4 py-3', s.color)}>
@@ -191,12 +194,16 @@ export default function ReportsPage() {
                   <th className="text-left px-4 py-3">Pulang</th>
                   <th className="text-left px-4 py-3">Status</th>
                   <th className="text-left px-4 py-3">Terlambat</th>
-                  <th className="text-left px-4 py-3">Lembur</th>
+                  <th className="text-left px-4 py-3">Jam Kerja</th>
+                  <th className="text-left px-4 py-3">Kekurangan</th>
                   <th className="text-left px-4 py-3">Lokasi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {paginated.map((a) => (
+                {paginated.map((a) => {
+                  const worked = calculateWorkedMinutes(a.checkIn, a.checkOut);
+                  const shortage = a.checkIn && a.checkOut ? calculateShortageMinutes(worked) : 0;
+                  return (
                   <tr
                     key={a.id}
                     onClick={() => setSelected(a)}
@@ -227,11 +234,16 @@ export default function ReportsPage() {
                         : <span className="text-slate-400">-</span>}
                     </td>
                     <td className="px-4 py-2.5">
-                      {a.isOvertime
-                        ? <span className={cn('font-semibold', a.overtimeStatus === 'APPROVED' ? 'text-purple-700' : a.overtimeStatus === 'REJECTED' ? 'text-red-400 line-through' : 'text-yellow-600')}>
-                            {a.overtimeMinutes} mnt
-                          </span>
+                      {a.checkIn && a.checkOut
+                        ? <span className="font-semibold text-slate-800">{formatMinutes(worked)}</span>
                         : <span className="text-slate-400">-</span>}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {a.checkIn && a.checkOut ? (
+                        shortage > 0
+                          ? <span className="font-semibold text-red-600">Kurang {formatMinutes(shortage)}</span>
+                          : <span className="text-green-600">Cukup</span>
+                      ) : <span className="text-slate-400">-</span>}
                     </td>
                     <td className="px-4 py-2.5">
                       {a.checkInLat
@@ -241,7 +253,8 @@ export default function ReportsPage() {
                         : <span className="text-slate-400 text-xs">-</span>}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -326,7 +339,25 @@ export default function ReportsPage() {
                 <InfoBox label="Jam Pulang" value={selected.checkOut ? formatTime(selected.checkOut) : '-'} />
                 <InfoBox label="Status" value={getStatusLabel(selected.status)} />
                 <InfoBox label="Terlambat" value={selected.isLate ? formatMinutes(selected.lateMinutes) : 'Tidak'} />
-                <InfoBox label="Lembur" value={selected.isOvertime ? `${formatMinutes(selected.overtimeMinutes)} (${selected.overtimeStatus})` : 'Tidak'} />
+                <InfoBox
+                  label="Jam Kerja"
+                  value={selected.checkIn && selected.checkOut ? formatMinutes(calculateWorkedMinutes(selected.checkIn, selected.checkOut)) : '-'}
+                />
+                <InfoBox
+                  label={`Kekurangan dari ${formatMinutes(STANDARD_WORK_MINUTES)}`}
+                  value={
+                    selected.checkIn && selected.checkOut
+                      ? (calculateShortageMinutes(calculateWorkedMinutes(selected.checkIn, selected.checkOut)) > 0
+                          ? `Kurang ${formatMinutes(calculateShortageMinutes(calculateWorkedMinutes(selected.checkIn, selected.checkOut)))}`
+                          : 'Cukup')
+                      : '-'
+                  }
+                  highlight={
+                    !!selected.checkIn && !!selected.checkOut &&
+                    calculateShortageMinutes(calculateWorkedMinutes(selected.checkIn, selected.checkOut)) > 0
+                  }
+                />
+                <InfoBox label="Pulang Otomatis" value={selected.isAutoCheckout ? 'Ya (cutoff)' : 'Tidak'} highlight={selected.isAutoCheckout} />
                 <InfoBox label="Luar Radius" value={selected.isOutOfRadius ? 'Ya' : 'Tidak'} highlight={selected.isOutOfRadius} />
               </div>
 

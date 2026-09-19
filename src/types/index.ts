@@ -1,20 +1,13 @@
 export type Role = 'ADMIN' | 'MANAGER' | 'SPV' | 'USER';
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LEAVE' | 'HOLIDAY' | 'OFF';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HOLIDAY' | 'OFF';
 export type CorrectionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type NotificationType =
   | 'LATE_CHECKIN'
   | 'OUT_OF_RADIUS'
-  | 'OVERTIME'
   | 'MISSING_CHECKOUT'
   | 'CORRECTION_REQUEST'
   | 'CORRECTION_APPROVED'
   | 'CORRECTION_REJECTED'
-  | 'LEAVE_REQUEST'
-  | 'LEAVE_APPROVED'
-  | 'LEAVE_REJECTED'
-  | 'EARLY_LEAVE_REQUEST'
-  | 'EARLY_LEAVE_APPROVED'
-  | 'EARLY_LEAVE_REJECTED'
   | 'SYSTEM';
 
 export interface UserProfile {
@@ -54,7 +47,6 @@ export interface WorkSchedule {
   checkInTime: string;
   checkOutTime: string;
   gracePeriod: number;
-  overtimeAfter: number;
   workDays: string;
   isActive: boolean;
   officeId?: string | null;
@@ -76,10 +68,8 @@ export interface Attendance {
   checkOutAddress?: string | null;
   isLate: boolean;
   lateMinutes: number;
-  isOvertime: boolean;
-  overtimeMinutes: number;
-  overtimeStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
   isOutOfRadius: boolean;
+  isAutoCheckout: boolean;
   status: AttendanceStatus;
   notes?: string | null;
   createdAt: string;
@@ -129,8 +119,6 @@ export interface DashboardStats {
   presentToday: number;
   lateToday: number;
   absentToday: number;
-  onLeaveToday: number;
-  overtimeToday: number;
 }
 
 export interface ApiResponse<T = unknown> {

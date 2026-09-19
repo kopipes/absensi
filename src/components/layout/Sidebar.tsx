@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Clock, Users, BarChart3, Settings,
   Fingerprint, CalendarDays, MapPin, Bell, LogOut, ChevronRight,
-  Building2, Timer, Palmtree, ArrowLeftFromLine, Edit2, ShieldCheck, ChevronDown
+  Building2, Edit2, ShieldCheck, ChevronDown
 } from 'lucide-react';
 import { cn, getRoleLabel, getRoleBadgeColor } from '@/lib/utils';
 import type { JWTPayload } from '@/lib/auth';
@@ -30,7 +30,6 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/attendance', label: 'Absensi', icon: Clock },
-      { href: '/leave', label: 'Cuti', icon: Palmtree },
     ],
   },
   {
@@ -38,9 +37,6 @@ const navGroups: NavGroup[] = [
     roles: ['ADMIN', 'MANAGER', 'SPV'],
     items: [
       { href: '/team', label: 'Tim Saya', icon: Users },
-      { href: '/overtime', label: 'Approval Lembur', icon: Timer },
-      { href: '/leave/approval', label: 'Approval Cuti', icon: CalendarDays },
-      { href: '/early-leave', label: 'Approval Pulang Awal', icon: ArrowLeftFromLine },
       { href: '/corrections', label: 'Koreksi Absen', icon: Edit2 },
       { href: '/reports', label: 'Laporan', icon: BarChart3 },
     ],

@@ -5,6 +5,9 @@ import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 const TZ = 'Asia/Jakarta';
 const CRON_SECRET = process.env.CRON_SECRET;
 
+// Batas jam pulang otomatis (WIB) bila karyawan lupa absen pulang.
+const CUTOFF_TIME = '19:00';
+
 export async function POST(req: NextRequest) {
   // Validate cron secret
   const auth = req.headers.get('x-cron-secret');
@@ -15,45 +18,46 @@ export async function POST(req: NextRequest) {
   try {
     const nowUTC = new Date();
     const nowWIB = toZonedTime(nowUTC, TZ);
+    const todayStr = formatInTimeZone(nowUTC, TZ, 'yyyy-MM-dd');
 
-    // Auto-checkout runs at 06:00 WIB for YESTERDAY's date
-    const yesterdayWIB = new Date(nowWIB);
-    yesterdayWIB.setDate(yesterdayWIB.getDate() - 1);
-    const yesterdayStr = formatInTimeZone(yesterdayWIB, TZ, 'yyyy-MM-dd');
-
-    // Find all attendances from yesterday with checkIn but no checkOut
+    // Find all attendances with check-in but no check-out up to today
     const missed = await prisma.attendance.findMany({
       where: {
-        date: yesterdayStr,
+        date: { lte: todayStr },
         checkIn: { not: null },
         checkOut: null,
       },
       include: {
-        user: {
-          include: { workSchedule: true },
-        },
+        user: { select: { id: true, name: true, managerId: true } },
       },
     });
 
     let autoCheckedOut = 0;
 
     for (const attendance of missed) {
+      const dateStr = attendance.date;
+
+      // Same-day cutoff only applies once 19:00 WIB has passed
+      if (dateStr === todayStr) {
+        const [cutH, cutM] = CUTOFF_TIME.split(':').map(Number);
+        const cutoffToday = new Date(nowWIB);
+        cutoffToday.setHours(cutH, cutM, 0, 0);
+        if (nowWIB < cutoffToday) continue;
+      }
+
       const user = attendance.user;
-      if (!user.workSchedule) continue;
 
-      // Set auto-checkout time = scheduled checkout time on that date in WIB
-      const [h, m] = user.workSchedule.checkOutTime.split(':').map(Number);
-      const autoCheckoutTime = new Date(yesterdayStr + 'T00:00:00+07:00');
-      autoCheckoutTime.setHours(h, m, 0, 0);
+      // Auto checkout time = 19:00 WIB on the attendance date
+      const autoCheckoutTime = new Date(`${dateStr}T${CUTOFF_TIME}:00+07:00`);
 
-      // Update attendance with auto-checkout
       await prisma.attendance.update({
         where: { id: attendance.id },
         data: {
           checkOut: autoCheckoutTime,
+          isAutoCheckout: true,
           notes: attendance.notes
-            ? `${attendance.notes} | Auto checkout sistem ${formatInTimeZone(nowUTC, TZ, 'HH:mm')} WIB - harap koreksi jika salah`
-            : `Auto checkout sistem ${formatInTimeZone(nowUTC, TZ, 'HH:mm')} WIB - harap koreksi jika salah`,
+            ? `${attendance.notes} | Auto cutoff ${CUTOFF_TIME} WIB - harap koreksi jika salah`
+            : `Auto cutoff ${CUTOFF_TIME} WIB - harap koreksi jika salah`,
         },
       });
 
@@ -61,8 +65,8 @@ export async function POST(req: NextRequest) {
       await prisma.notification.create({
         data: {
           type: 'MISSING_CHECKOUT',
-          title: 'Auto Absen Pulang oleh Sistem',
-          message: `Anda lupa absen pulang kemarin (${yesterdayStr}). Sistem telah otomatis mencatat jam pulang Anda pukul ${user.workSchedule.checkOutTime} WIB. Ajukan koreksi jika tidak sesuai.`,
+          title: 'Absen Pulang Otomatis (Cutoff)',
+          message: `Anda tidak absen pulang pada ${dateStr}. Sistem otomatis mencatat jam pulang pukul ${CUTOFF_TIME} WIB. Ajukan koreksi jika tidak sesuai.`,
           recipientId: user.id,
         },
       });
@@ -72,8 +76,8 @@ export async function POST(req: NextRequest) {
         await prisma.notification.create({
           data: {
             type: 'MISSING_CHECKOUT',
-            title: 'Auto Checkout Karyawan',
-            message: `${user.name} lupa absen pulang kemarin (${yesterdayStr}). Sistem otomatis mencatat jam pulang pukul ${user.workSchedule.checkOutTime} WIB. Silakan review jika diperlukan.`,
+            title: 'Auto Cutoff Karyawan',
+            message: `${user.name} tidak absen pulang pada ${dateStr}. Sistem otomatis mencatat jam pulang pukul ${CUTOFF_TIME} WIB. Silakan review jika diperlukan.`,
             recipientId: user.managerId,
             senderId: user.id,
           },
@@ -86,7 +90,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       autoCheckedOut,
-      date: yesterdayStr,
+      cutoffTime: CUTOFF_TIME,
       time: nowUTC.toISOString(),
     });
   } catch (error) {
