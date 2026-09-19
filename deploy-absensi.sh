@@ -3,10 +3,15 @@
 # SOT: https://github.com/kopipes/absensi.git
 # DB SOT: VPS (SQLite preserved across deploys)
 # Usage:
-#   sudo bash /var/www/deploy-absensi.sh          # deploy latest
-#   sudo bash /var/www/deploy-absensi.sh rollback  # rollback to last backup
+#   sudo bash /var/www/absensi/deploy-absensi.sh          # deploy latest
+#   sudo bash /var/www/absensi/deploy-absensi.sh rollback  # rollback to last backup
+#   sudo SEED_ON_FIRST_DEPLOY=1 bash /var/www/absensi/deploy-absensi.sh  # seed demo data
 
 set -e
+
+# Use the public npm registry explicitly (some hosts have a broken/offline mirror
+# in root's .npmrc). Override by exporting NPM_CONFIG_REGISTRY before running.
+export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org/}"
 
 APP_DIR=/var/www/absensi
 BACKUP_DIR=/var/www/absensi-backups
@@ -182,7 +187,7 @@ EnvironmentFile=$APP_DIR/.env
 Environment=PORT=$PORT
 Environment=NODE_ENV=production
 Environment=TZ=Asia/Jakarta
-ExecStart=/usr/bin/node node_modules/.bin/next start -p $PORT
+ExecStart=/usr/bin/node node_modules/.bin/next start -H 127.0.0.1 -p $PORT
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -215,4 +220,4 @@ echo "   App:      https://absensi.devop.my.id"
 echo "   Port:     $PORT"
 echo "   Logs:     journalctl -u $SERVICE -f"
 echo "   Status:   systemctl status $SERVICE"
-echo "   Rollback: sudo bash /var/www/deploy-absensi.sh rollback"
+echo "   Rollback: sudo bash /var/www/absensi/deploy-absensi.sh rollback"
