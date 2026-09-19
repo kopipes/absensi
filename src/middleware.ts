@@ -8,6 +8,11 @@ const MANAGER_PATHS = ['/team', '/reports'];
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Absolute redirects must use the public URL when running behind a reverse
+  // proxy (and when the server binds to a loopback host via `next start -H`).
+  const baseUrl = process.env.APP_URL || req.url;
+  const redirectTo = (path: string) => NextResponse.redirect(new URL(path, baseUrl));
+
   // Allow static files and Next.js internals
   if (
     pathname.startsWith('/_next') ||
@@ -34,7 +39,7 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
-    return NextResponse.redirect(new URL('/login', req.url));
+    return redirectTo('/login');
   }
 
   const user = await verifyToken(token);
@@ -45,7 +50,7 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
-    const res = NextResponse.redirect(new URL('/login', req.url));
+    const res = redirectTo('/login');
     res.cookies.delete('absensi_token');
     return res;
   }
@@ -53,7 +58,7 @@ export async function middleware(req: NextRequest) {
   // Admin-only UI paths — redirect non-admins
   const isAdminUiPath = ADMIN_ONLY_PATHS.some((p) => pathname.startsWith(p));
   if (isAdminUiPath && user.role !== 'ADMIN') {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
+    return redirectTo('/dashboard');
   }
 
   // Admin-only API paths — return 403 for non-admins
@@ -72,7 +77,7 @@ export async function middleware(req: NextRequest) {
 
   // Redirect root to dashboard
   if (pathname === '/') {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
+    return redirectTo('/dashboard');
   }
 
   // Add user info to request headers for server components (optional, safe)

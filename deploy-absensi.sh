@@ -129,6 +129,13 @@ else
 fi
 mkdir -p "$APP_DIR/uploads"
 
+# Ensure APP_URL is the public origin (absolute redirects behind the proxy)
+if grep -q '^APP_URL=' "$APP_DIR/.env" 2>/dev/null; then
+  sudo bash -c "sed -i 's|^APP_URL=.*|APP_URL=https://absensi.devop.my.id|' $APP_DIR/.env" 2>/dev/null || true
+else
+  echo "APP_URL=https://absensi.devop.my.id" >> "$APP_DIR/.env" 2>/dev/null || true
+fi
+
 # 5. Install all dependencies (devDeps needed for Next.js build)
 echo "4. Installing dependencies..."
 cd $APP_DIR
