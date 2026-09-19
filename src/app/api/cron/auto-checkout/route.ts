@@ -84,6 +84,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Respect the admin on/off setting; leave data untouched when disabled
+    const cutoffSetting = await prisma.setting.findUnique({ where: { key: 'auto_cutoff_enabled' } });
+    const cutoffEnabled = cutoffSetting ? cutoffSetting.value === 'true' : true;
+    if (!cutoffEnabled) {
+      return NextResponse.json({
+        success: true,
+        enabled: false,
+        autoCheckedOut: 0,
+        message: 'Auto cutoff nonaktif — data absen dibiarkan kosong.',
+      });
+    }
+
     const nowUTC = new Date();
     const todayStr = formatInTimeZone(nowUTC, TZ, 'yyyy-MM-dd');
 

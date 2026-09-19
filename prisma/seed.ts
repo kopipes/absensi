@@ -204,6 +204,13 @@ async function main() {
     });
   }
 
+  // Seed app settings (auto cutoff default: on)
+  await prisma.setting.upsert({
+    where: { key: 'auto_cutoff_enabled' },
+    update: {},
+    create: { key: 'auto_cutoff_enabled', value: 'true' },
+  });
+
   // Seed departments
   const deptNames = [
     'Creative', 'Event DeniHeidi', 'Event DesenDevy', 'Event Production',

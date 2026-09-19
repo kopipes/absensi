@@ -137,6 +137,12 @@ model Department {
   updatedAt   DateTime @updatedAt
 }
 
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model Holiday {
   id         String   @id @default(cuid())
   name       String

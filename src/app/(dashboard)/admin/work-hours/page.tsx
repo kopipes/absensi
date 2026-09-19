@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, Clock, X, Save } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, X, Save, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import type { WorkSchedule } from '@/types';
@@ -29,12 +29,41 @@ export default function AdminWorkHoursPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<WorkSchedule | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [autoCutoff, setAutoCutoff] = useState(true);
+  const [savingCutoff, setSavingCutoff] = useState(false);
 
   async function load() {
-    const res = await fetch('/api/work-schedules');
-    const data = await res.json();
+    const [sRes, setRes] = await Promise.all([
+      fetch('/api/work-schedules'),
+      fetch('/api/settings'),
+    ]);
+    const data = await sRes.json();
     if (data.success) setSchedules(data.data);
+    const setData = await setRes.json();
+    if (setData.success) setAutoCutoff(setData.data.autoCutoffEnabled);
     setLoading(false);
+  }
+
+  async function toggleAutoCutoff() {
+    const next = !autoCutoff;
+    setSavingCutoff(true);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoCutoffEnabled: next }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAutoCutoff(next);
+        toast.success(next ? 'Cutoff otomatis diaktifkan.' : 'Cutoff otomatis dinonaktifkan.');
+      } else {
+        toast.error(data.error || 'Gagal menyimpan pengaturan.');
+      }
+    } catch {
+      toast.error('Gagal terhubung ke server.');
+    }
+    setSavingCutoff(false);
   }
 
   useEffect(() => { load(); }, []);
@@ -118,6 +147,34 @@ export default function AdminWorkHoursPage() {
         <button onClick={openCreate} className="btn-primary">
           <Plus size={16} /> Tambah Jadwal
         </button>
+      </div>
+
+      {/* Auto cutoff setting */}
+      <div className="card">
+        <div className="flex items-start gap-3">
+          <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0', autoCutoff ? 'bg-purple-50' : 'bg-gray-100')}>
+            <Power size={18} className={autoCutoff ? 'text-purple-500' : 'text-slate-400'} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-800">Cutoff Absen Pulang Otomatis</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {autoCutoff
+                ? 'Aktif: absen pulang yang kosong otomatis diisi pukul 19:00 WIB dan ditandai "Auto Cutoff".'
+                : 'Nonaktif: absen pulang dibiarkan kosong, dan tidak bisa diisi lagi setelah pergantian hari (00:00 WIB).'}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoCutoff}
+            onClick={toggleAutoCutoff}
+            disabled={savingCutoff}
+            className={cn('relative w-12 h-7 rounded-full transition-colors flex-shrink-0 disabled:opacity-50', autoCutoff ? 'bg-purple-500' : 'bg-gray-300')}
+            title={autoCutoff ? 'Nonaktifkan' : 'Aktifkan'}
+          >
+            <span className={cn('absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-all', autoCutoff ? 'left-[22px]' : 'left-0.5')} />
+          </button>
+        </div>
       </div>
 
       {loading ? (
