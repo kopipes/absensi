@@ -87,7 +87,6 @@ export default function TeamPage() {
       <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'Hadir', count: filtered.filter(a => a.status === 'PRESENT').length, color: 'bg-green-50 text-green-700' },
-          { label: 'Terlambat', count: filtered.filter(a => a.isLate).length, color: 'bg-yellow-50 text-yellow-700' },
           { label: 'Pulang Otomatis', count: filtered.filter(a => a.isAutoCheckout).length, color: 'bg-purple-50 text-purple-700' },
           { label: 'Diluar Radius', count: filtered.filter(a => a.isOutOfRadius).length, color: 'bg-orange-50 text-orange-700' },
         ].map((s) => (
@@ -141,9 +140,6 @@ export default function TeamPage() {
                       <span className="font-semibold text-slate-800">
                         {a.checkIn ? formatTime(a.checkIn) : '-'}
                       </span>
-                      {a.isLate && (
-                        <span className="ml-1.5 text-xs text-yellow-600 bg-yellow-50 px-1.5 py-0.5 rounded-full">+{a.lateMinutes}m</span>
-                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-semibold text-slate-800">

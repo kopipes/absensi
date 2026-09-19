@@ -270,11 +270,6 @@ export default function AttendancePage() {
                     {todayAttendance.checkOut && <span>Pulang: <strong>{formatTime(todayAttendance.checkOut)}</strong></span>}
                   </div>
                   <div className="flex gap-2 mt-2 flex-wrap">
-                    {todayAttendance.isLate && (
-                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">
-                        Terlambat {todayAttendance.lateMinutes} mnt
-                      </span>
-                    )}
                     {todayAttendance.isAutoCheckout && (
                       <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
                         Pulang otomatis (cutoff {AUTO_CHECKOUT_CUTOFF_TIME})
@@ -295,7 +290,7 @@ export default function AttendancePage() {
           {!hasSchedule && (
             <div className="flex items-start gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-800">
               <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
-              <p>Jadwal kerja belum diatur (opsional). Absensi tetap bisa dilakukan, namun keterlambatan tidak akan dihitung otomatis.</p>
+              <p>Jadwal kerja tidak dipilih (opsional). Absensi tetap bisa dilakukan; perhitungan tetap 8 jam kerja per hari dan kekurangannya dicatat di laporan.</p>
             </div>
           )}
 
@@ -417,7 +412,6 @@ export default function AttendancePage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={cn('badge', getStatusBadgeColor(a.status))}>{getStatusLabel(a.status)}</span>
-                      {a.isLate && <span className="badge bg-yellow-50 text-yellow-700 border-yellow-200">Terlambat</span>}
                       {a.isAutoCheckout && <span className="badge bg-purple-50 text-purple-700 border-purple-200">Pulang Otomatis</span>}
                     </div>
                     <div className="flex gap-4 mt-1.5 text-sm text-slate-600">

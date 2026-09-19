@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
-import { calculateDistance, calculateLateMinutes, getTodayString } from '@/lib/utils';
+import { calculateDistance, getTodayString } from '@/lib/utils';
 import { saveAttendancePhoto, deleteAttendancePhoto, MAX_PHOTO_BYTES } from '@/lib/photos';
 
 export async function GET(req: NextRequest) {
@@ -107,13 +107,6 @@ export async function POST(req: NextRequest) {
         return badRequest('Anda sudah melakukan absen masuk hari ini.');
       }
 
-      let isLate = false;
-      let lateMinutes = 0;
-      if (user.workSchedule) {
-        lateMinutes = calculateLateMinutes(now, user.workSchedule.checkInTime, user.workSchedule.gracePeriod);
-        isLate = lateMinutes > 0;
-      }
-
       let checkInPhotoKey: string;
       try {
         checkInPhotoKey = await saveAttendancePhoto(photo, {
@@ -139,8 +132,6 @@ export async function POST(req: NextRequest) {
             checkInLat: latitude,
             checkInLng: longitude,
             checkInAddress: address?.trim() || null,
-            isLate,
-            lateMinutes,
             isOutOfRadius,
             status: 'PRESENT',
           },
@@ -157,17 +148,6 @@ export async function POST(req: NextRequest) {
       // Notify manager
       if (user.managerId) {
         const notifications = [];
-        if (isLate) {
-          notifications.push(prisma.notification.create({
-            data: {
-              type: 'LATE_CHECKIN',
-              title: 'Karyawan Terlambat',
-              message: `${user.name} terlambat ${lateMinutes} menit (absen masuk pukul ${now.toTimeString().slice(0, 5)})`,
-              recipientId: user.managerId,
-              senderId: authUser.userId,
-            },
-          }));
-        }
         if (isOutOfRadius) {
           notifications.push(prisma.notification.create({
             data: {

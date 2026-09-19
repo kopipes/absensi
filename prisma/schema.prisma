@@ -12,7 +12,7 @@ datasource db {
 // Role: ADMIN | MANAGER | SPV | USER
 // AttendanceStatus: PRESENT | ABSENT | HOLIDAY | OFF
 // CorrectionStatus: PENDING | APPROVED | REJECTED
-// NotificationType: LATE_CHECKIN | OUT_OF_RADIUS | MISSING_CHECKOUT | CORRECTION_REQUEST | CORRECTION_APPROVED | CORRECTION_REJECTED | SYSTEM
+// NotificationType: OUT_OF_RADIUS | MISSING_CHECKOUT | CORRECTION_REQUEST | CORRECTION_APPROVED | CORRECTION_REJECTED | SYSTEM
 
 model User {
   id         String   @id @default(cuid())
@@ -70,9 +70,8 @@ model Office {
 model WorkSchedule {
   id            String   @id @default(cuid())
   name          String
-  checkInTime   String   // "HH:mm"
-  checkOutTime  String   // "HH:mm"
-  gracePeriod   Int      @default(15)
+  checkInTime   String?  // "HH:mm" — opsional, jadwal boleh hanya hari kerja
+  checkOutTime  String?  // "HH:mm" — opsional, jadwal boleh hanya hari kerja
   workDays      String   @default("1,2,3,4,5")
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -99,8 +98,6 @@ model Attendance {
   checkOutLng     Float?
   checkInAddress  String?
   checkOutAddress String?
-  isLate          Boolean  @default(false)
-  lateMinutes     Int      @default(0)
   isOutOfRadius   Boolean  @default(false)
   isAutoCheckout  Boolean  @default(false) // true bila jam pulang diisi otomatis oleh sistem (cutoff)
   status          String   @default("PRESENT")

@@ -9,19 +9,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   try {
     const body = await req.json();
-    const { name, checkInTime, checkOutTime, gracePeriod, workDays, officeId, isActive } = body;
+    const { name, checkInTime, checkOutTime, workDays, officeId, isActive } = body;
 
-    if (!name || !checkInTime || !checkOutTime) {
-      return badRequest('Nama, jam masuk, dan jam pulang wajib diisi.');
+    if (!name?.trim()) {
+      return badRequest('Nama jadwal wajib diisi.');
     }
 
     const schedule = await prisma.workSchedule.update({
       where: { id: params.id },
       data: {
-        name,
-        checkInTime,
-        checkOutTime,
-        gracePeriod: gracePeriod ?? 15,
+        name: name.trim(),
+        checkInTime: checkInTime || null,
+        checkOutTime: checkOutTime || null,
         workDays: workDays || '1,2,3,4,5',
         officeId: officeId || null,
         ...(isActive !== undefined ? { isActive } : {}),

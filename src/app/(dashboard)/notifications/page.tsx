@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bell, Check, CheckCheck, Clock, MapPin, AlertCircle, Info } from 'lucide-react';
+import { Bell, Check, CheckCheck, MapPin, AlertCircle, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn, formatDateTime } from '@/lib/utils';
 import type { Notification } from '@/types';
 
 const typeConfig: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
-  LATE_CHECKIN:        { icon: Clock,      color: 'text-yellow-600', bg: 'bg-yellow-50' },
   OUT_OF_RADIUS:       { icon: MapPin,     color: 'text-orange-600', bg: 'bg-orange-50' },
   MISSING_CHECKOUT:    { icon: AlertCircle,color: 'text-red-600',    bg: 'bg-red-50' },
   CORRECTION_REQUEST:  { icon: Bell,       color: 'text-blue-600',   bg: 'bg-blue-50' },

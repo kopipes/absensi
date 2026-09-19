@@ -2,7 +2,6 @@ export type Role = 'ADMIN' | 'MANAGER' | 'SPV' | 'USER';
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HOLIDAY' | 'OFF';
 export type CorrectionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type NotificationType =
-  | 'LATE_CHECKIN'
   | 'OUT_OF_RADIUS'
   | 'MISSING_CHECKOUT'
   | 'CORRECTION_REQUEST'
@@ -44,9 +43,8 @@ export interface Office {
 export interface WorkSchedule {
   id: string;
   name: string;
-  checkInTime: string;
-  checkOutTime: string;
-  gracePeriod: number;
+  checkInTime: string | null;
+  checkOutTime: string | null;
   workDays: string;
   isActive: boolean;
   officeId?: string | null;
@@ -66,8 +64,6 @@ export interface Attendance {
   checkOutLng?: number | null;
   checkInAddress?: string | null;
   checkOutAddress?: string | null;
-  isLate: boolean;
-  lateMinutes: number;
   isOutOfRadius: boolean;
   isAutoCheckout: boolean;
   status: AttendanceStatus;
@@ -117,7 +113,6 @@ export interface Notification {
 export interface DashboardStats {
   totalEmployees: number;
   presentToday: number;
-  lateToday: number;
   absentToday: number;
 }
 

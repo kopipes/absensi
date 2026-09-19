@@ -12,7 +12,6 @@ import type { Attendance } from '@/types';
 interface DashboardStats {
   totalEmployees: number;
   presentToday: number;
-  lateToday: number;
   absentToday: number;
   outOfRadiusToday: number;
   autoCutoffToday: number;
@@ -129,13 +128,8 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-          {(myAttendance.isLate || myAttendance.isOutOfRadius || myAttendance.isAutoCheckout) && (
+          {(myAttendance.isOutOfRadius || myAttendance.isAutoCheckout) && (
             <div className="flex gap-2 mt-3 flex-wrap">
-              {myAttendance.isLate && (
-                <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-lg">
-                  Terlambat {myAttendance.lateMinutes} mnt
-                </span>
-              )}
               {myAttendance.isAutoCheckout && (
                 <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-lg">
                   Pulang otomatis (cutoff)
@@ -172,7 +166,6 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             <StatCard label="Total Karyawan" value={stats.totalEmployees} icon={Users} color="text-blue-500 bg-blue-50" />
             <StatCard label="Hadir Hari Ini" value={stats.presentToday} icon={CheckCircle2} color="text-green-500 bg-green-50" />
-            <StatCard label="Terlambat" value={stats.lateToday} icon={AlertCircle} color="text-yellow-500 bg-yellow-50" />
             <StatCard label="Tidak Hadir" value={stats.absentToday} icon={Timer} color="text-red-500 bg-red-50" />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

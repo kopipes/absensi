@@ -11,7 +11,19 @@ import type { Attendance } from '@/types';
 
 interface Stats {
   total: number; present: number; absent: number;
-  late: number; shortage: number; autoCutoff: number; outOfRadius: number;
+  shortage: number; autoCutoff: number; outOfRadius: number;
+}
+
+interface UserSummaryRow {
+  userId: string;
+  nik: string;
+  name: string;
+  department: string;
+  totalDays: number;
+  enoughDays: number;
+  shortDays: number;
+  incompleteDays: number;
+  shortMinutes: number;
 }
 
 export default function ReportsPage() {
@@ -24,6 +36,7 @@ export default function ReportsPage() {
   const [search, setSearch] = useState('');
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [summary, setSummary] = useState<UserSummaryRow[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -49,6 +62,7 @@ export default function ReportsPage() {
       if (data.success) {
         setAttendances(data.data.attendances);
         setStats(data.data.stats);
+        setSummary(data.data.summary || []);
       } else {
         toast.error(data.error || 'Gagal memuat laporan.');
       }
@@ -140,7 +154,6 @@ export default function ReportsPage() {
           {[
             { label: 'Total Records',  value: stats.total,       color: 'text-slate-700 bg-gray-100' },
             { label: 'Hadir',          value: stats.present,     color: 'text-green-700 bg-green-50' },
-            { label: 'Terlambat',      value: stats.late,        color: 'text-yellow-700 bg-yellow-50' },
             { label: 'Tidak Hadir',    value: stats.absent,      color: 'text-red-700 bg-red-50' },
             { label: 'Kurang Jam Kerja', value: stats.shortage,  color: 'text-orange-700 bg-orange-50' },
             { label: 'Pulang Otomatis', value: stats.autoCutoff, color: 'text-purple-700 bg-purple-50' },
@@ -154,6 +167,51 @@ export default function ReportsPage() {
           ))}
         </div>
       )}
+
+      {/* Rekap per Karyawan */}
+      <div className="card p-0 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="section-title">Rekap per Karyawan</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Standar {formatMinutes(STANDARD_WORK_MINUTES)} per hari</p>
+        </div>
+        {summary.length === 0 ? (
+          <p className="text-center py-10 text-slate-400 text-sm">Tidak ada data untuk filter yang dipilih.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-slate-500 text-xs font-semibold uppercase tracking-wide">
+                  <th className="text-left px-5 py-3">Karyawan</th>
+                  <th className="text-left px-4 py-3">Departemen</th>
+                  <th className="text-right px-4 py-3">Total Hari Absen</th>
+                  <th className="text-right px-4 py-3">Cukup 8 Jam</th>
+                  <th className="text-right px-4 py-3">Kurang 8 Jam</th>
+                  <th className="text-right px-4 py-3">Belum Lengkap</th>
+                  <th className="text-right px-5 py-3">Total Kekurangan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {summary.map((s) => (
+                  <tr key={s.userId} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-2.5">
+                      <p className="font-semibold text-slate-800">{s.name}</p>
+                      <p className="text-xs text-slate-400">{s.nik}</p>
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-600">{s.department || '-'}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-slate-800">{s.totalDays}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-green-700">{s.enoughDays}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-red-600">{s.shortDays}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-500">{s.incompleteDays}</td>
+                    <td className="px-5 py-2.5 text-right font-semibold text-orange-600">
+                      {s.shortMinutes > 0 ? formatMinutes(s.shortMinutes) : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Search */}
       <div className="relative">
@@ -193,7 +251,6 @@ export default function ReportsPage() {
                   <th className="text-left px-4 py-3">Masuk</th>
                   <th className="text-left px-4 py-3">Pulang</th>
                   <th className="text-left px-4 py-3">Status</th>
-                  <th className="text-left px-4 py-3">Terlambat</th>
                   <th className="text-left px-4 py-3">Jam Kerja</th>
                   <th className="text-left px-4 py-3">Kekurangan</th>
                   <th className="text-left px-4 py-3">Lokasi</th>
@@ -227,11 +284,6 @@ export default function ReportsPage() {
                           </span>
                         )}
                       </div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {a.isLate
-                        ? <span className="text-yellow-700 font-semibold">{a.lateMinutes} mnt</span>
-                        : <span className="text-slate-400">-</span>}
                     </td>
                     <td className="px-4 py-2.5">
                       {a.checkIn && a.checkOut
@@ -338,7 +390,6 @@ export default function ReportsPage() {
                 <InfoBox label="Jam Masuk" value={selected.checkIn ? formatTime(selected.checkIn) : '-'} />
                 <InfoBox label="Jam Pulang" value={selected.checkOut ? formatTime(selected.checkOut) : '-'} />
                 <InfoBox label="Status" value={getStatusLabel(selected.status)} />
-                <InfoBox label="Terlambat" value={selected.isLate ? formatMinutes(selected.lateMinutes) : 'Tidak'} />
                 <InfoBox
                   label="Jam Kerja"
                   value={selected.checkIn && selected.checkOut ? formatMinutes(calculateWorkedMinutes(selected.checkIn, selected.checkOut)) : '-'}

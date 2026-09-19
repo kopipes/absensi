@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { parseISO } from 'date-fns';
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+import { formatInTimeZone } from 'date-fns-tz';
 import { id as idLocale } from 'date-fns/locale';
 
 const TZ = 'Asia/Jakarta';
@@ -71,25 +71,6 @@ export function isWithinRadius(
   radiusMeters: number
 ): boolean {
   return calculateDistance(userLat, userLng, officeLat, officeLng) <= radiusMeters;
-}
-
-/**
- * Calculate how many minutes late a check-in is.
- * scheduledTime is "HH:mm" in WIB.
- */
-export function calculateLateMinutes(
-  checkInTime: Date,
-  scheduledTime: string,
-  gracePeriod: number
-): number {
-  const [h, m] = scheduledTime.split(':').map(Number);
-  const zoned = toZonedTime(checkInTime, TZ);
-  const scheduled = new Date(zoned);
-  scheduled.setHours(h, m, 0, 0);
-
-  const graceEnd = scheduled.getTime() + gracePeriod * 60_000;
-  if (zoned.getTime() <= graceEnd) return 0;
-  return Math.floor((zoned.getTime() - scheduled.getTime()) / 60_000);
 }
 
 /** Standard working day in minutes (8 hours). */

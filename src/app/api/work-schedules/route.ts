@@ -21,16 +21,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, checkInTime, checkOutTime, gracePeriod, workDays, officeId } = body;
-    if (!name || !checkInTime || !checkOutTime) {
-      return badRequest('Nama, jam masuk, dan jam pulang wajib diisi.');
+    const { name, checkInTime, checkOutTime, workDays, officeId } = body;
+    if (!name?.trim()) {
+      return badRequest('Nama jadwal wajib diisi.');
     }
     const schedule = await prisma.workSchedule.create({
       data: {
-        name,
-        checkInTime,
-        checkOutTime,
-        gracePeriod: gracePeriod ?? 15,
+        name: name.trim(),
+        checkInTime: checkInTime || null,
+        checkOutTime: checkOutTime || null,
         workDays: workDays || '1,2,3,4,5',
         officeId: officeId || null,
       },

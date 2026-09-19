@@ -29,7 +29,6 @@ async function main() {
       name: 'Reguler (08:00 - 17:00)',
       checkInTime: '08:00',
       checkOutTime: '17:00',
-      gracePeriod: 15,
       workDays: '1,2,3,4,5',
       officeId: office.id,
     },
@@ -277,9 +276,6 @@ async function main() {
       const checkOut = new Date(dateObj);
       checkOut.setHours(checkOutHour, checkOutMin, 0, 0);
 
-      const isLate = checkInHour > 8 || (checkInHour === 8 && checkInMin > 15);
-      const lateMinutes = isLate ? (checkInHour - 8) * 60 + checkInMin - 15 : 0;
-
       await prisma.attendance.create({
         data: {
           userId: user.id,
@@ -292,8 +288,6 @@ async function main() {
           checkOutLng: 106.8456 + (Math.random() - 0.5) * 0.001,
           checkInAddress: 'Jl. Sudirman No. 1, Jakarta',
           checkOutAddress: 'Jl. Sudirman No. 1, Jakarta',
-          isLate,
-          lateMinutes,
           status: 'PRESENT',
         },
       });

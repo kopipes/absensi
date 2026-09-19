@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
-import { calculateLateMinutes } from '@/lib/utils';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const authUser = await getAuthUser(req);
@@ -61,23 +60,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
 
     if (status === 'APPROVED') {
-      // Determine final checkIn after correction
-      const newCheckIn = correction.newCheckIn ?? correction.attendance.checkIn;
-
-      // Recalculate late minutes if user has a work schedule
-      const user = await prisma.user.findUnique({
-        where: { id: correction.requestedById },
-        include: { workSchedule: true },
-      });
-
-      let lateData = {};
-      if (user?.workSchedule && newCheckIn) {
-        const ws = user.workSchedule;
-        const checkInDate = new Date(Number(newCheckIn));
-        const lateMinutes = calculateLateMinutes(checkInDate, ws.checkInTime, ws.gracePeriod);
-        lateData = { isLate: lateMinutes > 0, lateMinutes };
-      }
-
       await prisma.$transaction([
         updateCorrection,
         createNotification,
@@ -86,7 +68,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           data: {
             ...(correction.newCheckIn ? { checkIn: correction.newCheckIn } : {}),
             ...(correction.newCheckOut ? { checkOut: correction.newCheckOut, isAutoCheckout: false } : {}),
-            ...lateData,
           },
         }),
       ]);

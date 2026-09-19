@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
 
     for (const user of users) {
       if (!user.workSchedule) continue;
+      // Days-only schedules have no checkout time to remind against
+      if (!user.workSchedule.checkOutTime) continue;
 
       // Check if today is a work day
       const workDays = user.workSchedule.workDays.split(',');

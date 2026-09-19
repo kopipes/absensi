@@ -7,6 +7,65 @@ import * as XLSX from 'xlsx';
 const VALID_STATUSES = ['PRESENT', 'ABSENT', 'HOLIDAY', 'OFF'];
 const STANDARD_LABEL = formatMinutes(STANDARD_WORK_MINUTES);
 
+interface SummaryAttendance {
+  userId: string;
+  checkIn: Date | null;
+  checkOut: Date | null;
+  user?: { id: string; nik: string; name: string; department: string | null } | null;
+}
+
+interface UserSummaryRow {
+  userId: string;
+  nik: string;
+  name: string;
+  department: string;
+  totalDays: number;
+  enoughDays: number;
+  shortDays: number;
+  incompleteDays: number;
+  shortMinutes: number;
+}
+
+/** Group attendance per employee: total days, days >= 8h, days < 8h, total shortfall. */
+function buildUserSummary(attendances: SummaryAttendance[]): UserSummaryRow[] {
+  const map = new Map<string, UserSummaryRow>();
+
+  for (const a of attendances) {
+    if (!a.user || !a.checkIn) continue;
+
+    const row = map.get(a.userId) ?? {
+      userId: a.userId,
+      nik: a.user.nik,
+      name: a.user.name,
+      department: a.user.department || '',
+      totalDays: 0,
+      enoughDays: 0,
+      shortDays: 0,
+      incompleteDays: 0,
+      shortMinutes: 0,
+    };
+
+    row.totalDays += 1;
+
+    if (a.checkOut) {
+      const worked = calculateWorkedMinutes(a.checkIn, a.checkOut);
+      const shortage = calculateShortageMinutes(worked);
+      if (shortage > 0) {
+        row.shortDays += 1;
+        row.shortMinutes += shortage;
+      } else {
+        row.enoughDays += 1;
+      }
+    } else {
+      row.incompleteDays += 1;
+    }
+
+    map.set(a.userId, row);
+  }
+
+  return Array.from(map.values()).sort((x, y) => x.name.localeCompare(y.name));
+}
+
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
   if (!authUser) return unauthorized();
@@ -64,8 +123,6 @@ export async function GET(req: NextRequest) {
           'Jam Masuk': a.checkIn ? new Date(a.checkIn).toTimeString().slice(0, 5) : '-',
           'Jam Pulang': a.checkOut ? new Date(a.checkOut).toTimeString().slice(0, 5) : '-',
           Status: a.status,
-          Terlambat: a.isLate ? 'Ya' : 'Tidak',
-          'Menit Terlambat': a.lateMinutes,
           'Jam Kerja': a.checkIn && a.checkOut ? formatMinutes(worked) : '-',
           [`Kurang dari ${STANDARD_LABEL}`]: a.checkIn && a.checkOut && shortage > 0 ? formatMinutes(shortage) : '-',
           'Auto Cutoff': a.isAutoCheckout ? 'Ya' : 'Tidak',
@@ -76,9 +133,22 @@ export async function GET(req: NextRequest) {
         };
       });
 
+      const summaryRows = buildUserSummary(attendances).map((s) => ({
+        NIK: s.nik,
+        Nama: s.name,
+        Departemen: s.department,
+        'Total Hari Absen': s.totalDays,
+        [`Hari >= ${STANDARD_LABEL}`]: s.enoughDays,
+        [`Hari < ${STANDARD_LABEL}`]: s.shortDays,
+        'Hari Belum Lengkap': s.incompleteDays,
+        'Total Kekurangan (menit)': s.shortMinutes,
+        'Total Kekurangan': s.shortMinutes > 0 ? formatMinutes(s.shortMinutes) : '-',
+      }));
+
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(rows);
       XLSX.utils.book_append_sheet(wb, ws, 'Laporan Absensi');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Rekap per Karyawan');
       const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
       // Sanitize filename
@@ -97,7 +167,6 @@ export async function GET(req: NextRequest) {
       total: attendances.length,
       present: attendances.filter((a) => a.status === 'PRESENT').length,
       absent: attendances.filter((a) => a.status === 'ABSENT').length,
-      late: attendances.filter((a) => a.isLate).length,
       shortage: attendances.filter(
         (a) =>
           !!a.checkIn &&
@@ -108,7 +177,7 @@ export async function GET(req: NextRequest) {
       outOfRadius: attendances.filter((a) => a.isOutOfRadius).length,
     };
 
-    return ok({ attendances, stats });
+    return ok({ attendances, stats, summary: buildUserSummary(attendances) });
   } catch (error) {
     console.error('[REPORTS]', error);
     return serverError();

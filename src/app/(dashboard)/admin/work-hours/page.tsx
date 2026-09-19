@@ -8,13 +8,13 @@ import type { WorkSchedule } from '@/types';
 
 interface ScheduleForm {
   name: string; checkInTime: string; checkOutTime: string;
-  gracePeriod: string; workDays: string;
+  daysOnly: boolean; workDays: string;
   officeId: string; isActive: boolean;
 }
 
 const emptyForm: ScheduleForm = {
   name: '', checkInTime: '08:00', checkOutTime: '17:00',
-  gracePeriod: '15', workDays: '1,2,3,4,5',
+  daysOnly: false, workDays: '1,2,3,4,5',
   officeId: '', isActive: true,
 };
 
@@ -49,9 +49,9 @@ export default function AdminWorkHoursPage() {
     setEditing(s);
     setForm({
       name: s.name,
-      checkInTime: s.checkInTime,
-      checkOutTime: s.checkOutTime,
-      gracePeriod: String(s.gracePeriod),
+      checkInTime: s.checkInTime || '08:00',
+      checkOutTime: s.checkOutTime || '17:00',
+      daysOnly: !s.checkInTime && !s.checkOutTime,
       workDays: s.workDays,
       officeId: s.officeId || '',
       isActive: s.isActive,
@@ -66,8 +66,8 @@ export default function AdminWorkHoursPage() {
   }
 
   async function handleSave() {
-    if (!form.name || !form.checkInTime || !form.checkOutTime) {
-      toast.error('Nama, jam masuk, dan jam pulang wajib diisi.');
+    if (!form.name.trim()) {
+      toast.error('Nama jadwal wajib diisi.');
       return;
     }
     setSaving(true);
@@ -77,9 +77,12 @@ export default function AdminWorkHoursPage() {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        ...form,
-        gracePeriod: parseInt(form.gracePeriod) || 15,
+        name: form.name,
+        checkInTime: form.daysOnly ? null : (form.checkInTime || null),
+        checkOutTime: form.daysOnly ? null : (form.checkOutTime || null),
+        workDays: form.workDays,
         officeId: form.officeId || null,
+        isActive: form.isActive,
       }),
     });
     const data = await res.json();
@@ -139,9 +142,14 @@ export default function AdminWorkHoursPage() {
                       </span>
                     </div>
                     <div className="flex gap-4 mt-1.5 text-sm text-slate-600 flex-wrap">
-                      <span>Masuk: <strong>{s.checkInTime}</strong></span>
-                      <span>Pulang: <strong>{s.checkOutTime}</strong></span>
-                      <span>Toleransi: <strong>{s.gracePeriod} mnt</strong></span>
+                      {s.checkInTime || s.checkOutTime ? (
+                        <>
+                          <span>Masuk: <strong>{s.checkInTime || '-'}</strong></span>
+                          <span>Pulang: <strong>{s.checkOutTime || '-'}</strong></span>
+                        </>
+                      ) : (
+                        <span className="text-slate-500">Hanya hari kerja (tanpa jam)</span>
+                      )}
                     </div>
                     <div className="flex gap-1.5 mt-2 flex-wrap">
                       {[1,2,3,4,5,6,7].map((d) => (
@@ -185,20 +193,30 @@ export default function AdminWorkHoursPage() {
                 <label className="label">Nama Jadwal *</label>
                 <input className="input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Reguler (08:00–17:00)" autoFocus />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Jam Masuk *</label>
-                  <input className="input" type="time" value={form.checkInTime} onChange={e => setForm(f => ({ ...f, checkInTime: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Jam Pulang *</label>
-                  <input className="input" type="time" value={form.checkOutTime} onChange={e => setForm(f => ({ ...f, checkOutTime: e.target.value }))} />
-                </div>
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                <input
+                  type="checkbox"
+                  id="daysOnly"
+                  checked={form.daysOnly}
+                  onChange={e => setForm(f => ({ ...f, daysOnly: e.target.checked }))}
+                  className="w-4 h-4 accent-sky-500"
+                />
+                <label htmlFor="daysOnly" className="text-sm font-medium text-slate-700 cursor-pointer">
+                  Hanya hari kerja (tanpa jam masuk/pulang)
+                </label>
               </div>
-              <div>
-                <label className="label">Toleransi Terlambat (mnt)</label>
-                <input className="input" type="number" min="0" value={form.gracePeriod} onChange={e => setForm(f => ({ ...f, gracePeriod: e.target.value }))} />
-              </div>
+              {!form.daysOnly && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Jam Masuk (opsional)</label>
+                    <input className="input" type="time" value={form.checkInTime} onChange={e => setForm(f => ({ ...f, checkInTime: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label">Jam Pulang (opsional)</label>
+                    <input className="input" type="time" value={form.checkOutTime} onChange={e => setForm(f => ({ ...f, checkOutTime: e.target.value }))} />
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="label">Hari Kerja</label>
                 <div className="flex gap-2 flex-wrap">

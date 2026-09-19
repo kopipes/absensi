@@ -54,7 +54,6 @@ export async function GET(req: NextRequest) {
     return ok({
       totalEmployees,
       presentToday: todayAttendances.filter((a) => a.status === 'PRESENT').length,
-      lateToday: todayAttendances.filter((a) => a.isLate).length,
       absentToday: todayAttendances.filter((a) => a.status === 'ABSENT').length,
       outOfRadiusToday: todayAttendances.filter((a) => a.isOutOfRadius).length,
       autoCutoffToday: todayAttendances.filter((a) => a.isAutoCheckout).length,
