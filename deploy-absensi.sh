@@ -13,7 +13,7 @@ BACKUP_DIR=/var/www/absensi-backups
 DB_FILE=$APP_DIR/prisma/dev.db
 REPO=https://github.com/kopipes/absensi.git
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-PORT=3002
+PORT=3030
 SERVICE=absensi
 
 mkdir -p $BACKUP_DIR
@@ -215,7 +215,7 @@ ls -t $BACKUP_DIR | grep -E '^[0-9]{8}_' | tail -n +6 | xargs -I{} rm -rf "$BACK
 
 echo ""
 echo "=== Absensi Deploy Complete! ==="
-echo "   App:      https://absensi.provaliantgroup.com"
+echo "   App:      https://absensi.devop.my.id"
 echo "   Port:     $PORT"
 echo "   Logs:     journalctl -u $SERVICE -f"
 echo "   Status:   systemctl status $SERVICE"
