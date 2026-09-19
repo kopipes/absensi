@@ -37,6 +37,7 @@ export default function ReportsPage() {
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [summary, setSummary] = useState<UserSummaryRow[]>([]);
+  const [view, setView] = useState<'detail' | 'summary'>('detail');
   const [departments, setDepartments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -78,7 +79,7 @@ export default function ReportsPage() {
   async function handleExport() {
     setExporting(true);
     try {
-      const params = new URLSearchParams({ startDate, endDate, format: 'xlsx' });
+      const params = new URLSearchParams({ startDate, endDate, format: 'xlsx', view });
       if (department) params.set('department', department);
       const res = await fetch(`/api/reports?${params}`);
       if (!res.ok) { toast.error('Gagal mengekspor.'); return; }
@@ -116,9 +117,29 @@ export default function ReportsPage() {
     <div className="space-y-5 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
         <h1 className="page-title">Laporan Absensi</h1>
-        <button onClick={handleExport} disabled={exporting || !attendances.length} className="btn-primary btn-sm">
+        <button
+          onClick={handleExport}
+          disabled={exporting || (view === 'summary' ? summary.length === 0 : attendances.length === 0)}
+          className="btn-primary btn-sm"
+        >
           <Download size={14} />
-          {exporting ? 'Mengekspor...' : 'Export Excel'}
+          {exporting ? 'Mengekspor...' : view === 'summary' ? 'Export Rekap' : 'Export Detail'}
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex bg-gray-100 p-1 rounded-2xl">
+        <button
+          className={cn('flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all', view === 'detail' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500')}
+          onClick={() => setView('detail')}
+        >
+          Detail Absensi
+        </button>
+        <button
+          className={cn('flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all', view === 'summary' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500')}
+          onClick={() => setView('summary')}
+        >
+          Rekap per Karyawan
         </button>
       </div>
 
@@ -169,6 +190,7 @@ export default function ReportsPage() {
       )}
 
       {/* Rekap per Karyawan */}
+      {view === 'summary' && (
       <div className="card p-0 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="section-title">Rekap per Karyawan</h2>
@@ -212,7 +234,10 @@ export default function ReportsPage() {
           </div>
         )}
       </div>
+      )}
 
+      {view === 'detail' && (
+      <>
       {/* Search */}
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -364,6 +389,8 @@ export default function ReportsPage() {
             >»</button>
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* Detail Modal */}

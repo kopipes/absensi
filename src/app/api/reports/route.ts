@@ -79,9 +79,11 @@ export async function GET(req: NextRequest) {
     const userId = searchParams.get('userId') || '';
     const format = searchParams.get('format') || 'json';
     const status = searchParams.get('status') || '';
+    const view = searchParams.get('view') || 'detail';
 
     // Validate format
     if (!['json', 'xlsx'].includes(format)) return badRequest('Format tidak valid.');
+    if (!['detail', 'summary'].includes(view)) return badRequest('View tidak valid.');
 
     // Validate date formats
     if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
@@ -110,55 +112,79 @@ export async function GET(req: NextRequest) {
       orderBy: [{ date: 'asc' }, { user: { name: 'asc' } }],
     });
 
+    // Sanitize filename parts
+    const safeStart = startDate.replace(/[^0-9-]/g, '') || 'all';
+    const safeEnd = endDate.replace(/[^0-9-]/g, '') || 'all';
+
     if (format === 'xlsx') {
-      const rows = attendances.map((a) => {
-        const worked = calculateWorkedMinutes(a.checkIn, a.checkOut);
-        const shortage = calculateShortageMinutes(worked);
-        return {
-          NIK: a.user?.nik || '',
-          Nama: a.user?.name || '',
-          Departemen: a.user?.department || '',
-          Jabatan: a.user?.position || '',
-          Tanggal: a.date,
-          'Jam Masuk': a.checkIn ? new Date(a.checkIn).toTimeString().slice(0, 5) : '-',
-          'Jam Pulang': a.checkOut ? new Date(a.checkOut).toTimeString().slice(0, 5) : '-',
-          Status: a.status,
-          'Jam Kerja': a.checkIn && a.checkOut ? formatMinutes(worked) : '-',
-          [`Kurang dari ${STANDARD_LABEL}`]: a.checkIn && a.checkOut && shortage > 0 ? formatMinutes(shortage) : '-',
-          'Auto Cutoff': a.isAutoCheckout ? 'Ya' : 'Tidak',
-          'Di Luar Radius': a.isOutOfRadius ? 'Ya' : 'Tidak',
-          'Lokasi Masuk': a.checkInAddress || '',
-          'Lokasi Pulang': a.checkOutAddress || '',
-          Catatan: a.notes || '',
-        };
-      });
-
-      const summaryRows = buildUserSummary(attendances).map((s) => ({
-        NIK: s.nik,
-        Nama: s.name,
-        Departemen: s.department,
-        'Total Hari Absen': s.totalDays,
-        [`Hari >= ${STANDARD_LABEL}`]: s.enoughDays,
-        [`Hari < ${STANDARD_LABEL}`]: s.shortDays,
-        'Hari Belum Lengkap': s.incompleteDays,
-        'Total Kekurangan (menit)': s.shortMinutes,
-        'Total Kekurangan': s.shortMinutes > 0 ? formatMinutes(s.shortMinutes) : '-',
-      }));
-
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, 'Laporan Absensi');
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Rekap per Karyawan');
-      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      let filename: string;
 
-      // Sanitize filename
-      const safeStart = startDate.replace(/[^0-9-]/g, '') || 'all';
-      const safeEnd = endDate.replace(/[^0-9-]/g, '') || 'all';
+      if (view === 'summary') {
+        const summaryRows = buildUserSummary(attendances).map((s) => ({
+          NIK: s.nik,
+          Nama: s.name,
+          Departemen: s.department,
+          'Total Hari Absen': s.totalDays,
+          [`Hari >= ${STANDARD_LABEL}`]: s.enoughDays,
+          [`Hari < ${STANDARD_LABEL}`]: s.shortDays,
+          'Hari Belum Lengkap': s.incompleteDays,
+          'Total Kekurangan (menit)': s.shortMinutes,
+          'Total Kekurangan': s.shortMinutes > 0 ? formatMinutes(s.shortMinutes) : '-',
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(summaryRows);
+        ws['!cols'] = [
+          { wch: 16 }, { wch: 26 }, { wch: 18 }, { wch: 16 }, { wch: 14 },
+          { wch: 14 }, { wch: 16 }, { wch: 22 }, { wch: 20 },
+        ];
+        XLSX.utils.book_append_sheet(wb, ws, 'Rekap per Karyawan');
+        filename = `rekap-absensi-${safeStart}-${safeEnd}.xlsx`;
+      } else {
+        const rows = attendances.map((a) => {
+          const worked = calculateWorkedMinutes(a.checkIn, a.checkOut);
+          const shortage = calculateShortageMinutes(worked);
+          return {
+            NIK: a.user?.nik || '',
+            Nama: a.user?.name || '',
+            Departemen: a.user?.department || '',
+            Jabatan: a.user?.position || '',
+            Tanggal: a.date,
+            'Jam Masuk': a.checkIn ? new Date(a.checkIn).toTimeString().slice(0, 5) : '-',
+            'Jam Pulang': a.checkOut ? new Date(a.checkOut).toTimeString().slice(0, 5) : '-',
+            Status: a.status,
+            'Jam Kerja': a.checkIn && a.checkOut ? formatMinutes(worked) : '-',
+            [`Kurang dari ${STANDARD_LABEL}`]: a.checkIn && a.checkOut && shortage > 0 ? formatMinutes(shortage) : '-',
+            'Auto Cutoff': a.isAutoCheckout ? 'Ya' : 'Tidak',
+            'Di Luar Radius': a.isOutOfRadius ? 'Ya' : 'Tidak',
+            'Lokasi Masuk': a.checkInAddress || '',
+            'Lokasi Pulang': a.checkOutAddress || '',
+            Catatan: a.notes || '',
+          };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        ws['!cols'] = [
+          { wch: 16 }, { wch: 26 }, { wch: 18 }, { wch: 20 }, { wch: 12 },
+          { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 18 },
+          { wch: 12 }, { wch: 14 }, { wch: 32 }, { wch: 32 }, { wch: 32 },
+        ];
+        const headerCount = Object.keys(rows[0] || {}).length;
+        if (headerCount > 0) {
+          ws['!autofilter'] = {
+            ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: headerCount - 1 } }),
+          };
+        }
+        XLSX.utils.book_append_sheet(wb, ws, 'Detail Absensi');
+        filename = `detail-absensi-${safeStart}-${safeEnd}.xlsx`;
+      }
+
+      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
       return new Response(buf, {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': `attachment; filename="laporan-absensi-${safeStart}-${safeEnd}.xlsx"`,
+          'Content-Disposition': `attachment; filename="${filename}"`,
         },
       });
     }
