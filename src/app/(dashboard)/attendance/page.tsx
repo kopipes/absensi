@@ -22,6 +22,8 @@ export default function AttendancePage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [hasSchedule, setHasSchedule] = useState<boolean>(true);
   const [profile, setProfile] = useState<{ name: string; nik: string } | null>(null);
+  const [cutoffTime, setCutoffTime] = useState(AUTO_CHECKOUT_CUTOFF_TIME);
+  const [cutoffEnabled, setCutoffEnabled] = useState(true);
 
   // Correction state
   const [correctionTarget, setCorrectionTarget] = useState<Attendance | null>(null);
@@ -51,6 +53,12 @@ export default function AttendancePage() {
         setProfile({ name: d.data.name, nik: d.data.nik });
       }
     });
+    fetch('/api/settings').then(r => r.json()).then(d => {
+      if (d.success) {
+        setCutoffTime(d.data.autoCutoffTime || AUTO_CHECKOUT_CUTOFF_TIME);
+        setCutoffEnabled(d.data.autoCutoffEnabled !== false);
+      }
+    }).catch(() => {});
     getLocation();
   }, [loadTodayAttendance]);
 
@@ -272,7 +280,7 @@ export default function AttendancePage() {
                   <div className="flex gap-2 mt-2 flex-wrap">
                     {todayAttendance.isAutoCheckout && (
                       <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                        Pulang otomatis (cutoff {AUTO_CHECKOUT_CUTOFF_TIME})
+                        Pulang otomatis (cutoff {cutoffTime})
                       </span>
                     )}
                     {todayAttendance.isOutOfRadius && (
@@ -380,7 +388,9 @@ export default function AttendancePage() {
           </div>
 
           <p className="text-center text-xs text-slate-400">
-            Lupa absen pulang? Sistem otomatis mencatat jam pulang pukul {AUTO_CHECKOUT_CUTOFF_TIME} WIB (cutoff).
+            {cutoffEnabled
+              ? `Lupa absen pulang? Sistem otomatis mencatat jam pulang pukul ${cutoffTime} WIB (cutoff).`
+              : 'Absen pulang tidak diisi otomatis. Lengkapi absen pulang sebelum pergantian hari (00:00 WIB).'}
           </p>
 
           {!cameraReady && !cameraError && (

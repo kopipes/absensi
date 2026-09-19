@@ -6,8 +6,10 @@ import { AUTO_CHECKOUT_CUTOFF_TIME } from '@/lib/utils';
 const TZ = 'Asia/Jakarta';
 const CRON_SECRET = process.env.CRON_SECRET;
 
-// Batas jam pulang otomatis (WIB) bila karyawan lupa absen pulang.
+// Jam cutoff default (WIB); nilai aktual dibaca dari Setting admin.
 const CUTOFF_TIME = AUTO_CHECKOUT_CUTOFF_TIME;
+const CUTOFF_TIME_KEY = 'auto_cutoff_time';
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 // Batas riwayat yang diproses ulang per run (hari) agar tidak memindai seluruh data.
 const LOOKBACK_DAYS = 7;
 const CHUNK_SIZE = 25;
@@ -22,20 +24,21 @@ interface MissedAttendance {
 async function processAttendance(
   attendance: MissedAttendance,
   todayStr: string,
-  nowUTC: Date
+  nowUTC: Date,
+  cutoffTime: string
 ): Promise<number> {
   const dateStr = attendance.date;
 
   // Same-day cutoff only applies once the cutoff instant has passed
   if (dateStr === todayStr) {
-    const cutoffInstant = new Date(`${todayStr}T${CUTOFF_TIME}:00+07:00`);
+    const cutoffInstant = new Date(`${todayStr}T${cutoffTime}:00+07:00`);
     if (nowUTC < cutoffInstant) return 0;
   }
 
   const user = attendance.user;
 
-  // Auto checkout time = cutoff (19:00 WIB) on the attendance date
-  const autoCheckoutTime = new Date(`${dateStr}T${CUTOFF_TIME}:00+07:00`);
+  // Auto checkout time = configured cutoff (WIB) on the attendance date
+  const autoCheckoutTime = new Date(`${dateStr}T${cutoffTime}:00+07:00`);
 
   const operations = [
     prisma.attendance.update({
@@ -44,15 +47,15 @@ async function processAttendance(
         checkOut: autoCheckoutTime,
         isAutoCheckout: true,
         notes: attendance.notes
-          ? `${attendance.notes} | Auto cutoff ${CUTOFF_TIME} WIB - harap koreksi jika salah`
-          : `Auto cutoff ${CUTOFF_TIME} WIB - harap koreksi jika salah`,
+          ? `${attendance.notes} | Auto cutoff ${cutoffTime} WIB - harap koreksi jika salah`
+          : `Auto cutoff ${cutoffTime} WIB - harap koreksi jika salah`,
       },
     }),
     prisma.notification.create({
       data: {
         type: 'MISSING_CHECKOUT',
         title: 'Absen Pulang Otomatis (Cutoff)',
-        message: `Anda tidak absen pulang pada ${dateStr}. Sistem otomatis mencatat jam pulang pukul ${CUTOFF_TIME} WIB. Ajukan koreksi jika tidak sesuai.`,
+        message: `Anda tidak absen pulang pada ${dateStr}. Sistem otomatis mencatat jam pulang pukul ${cutoffTime} WIB. Ajukan koreksi jika tidak sesuai.`,
         recipientId: user.id,
       },
     }),
@@ -64,7 +67,7 @@ async function processAttendance(
         data: {
           type: 'MISSING_CHECKOUT',
           title: 'Auto Cutoff Karyawan',
-          message: `${user.name} tidak absen pulang pada ${dateStr}. Sistem otomatis mencatat jam pulang pukul ${CUTOFF_TIME} WIB. Silakan review jika diperlukan.`,
+          message: `${user.name} tidak absen pulang pada ${dateStr}. Sistem otomatis mencatat jam pulang pukul ${cutoffTime} WIB. Silakan review jika diperlukan.`,
           recipientId: user.managerId,
           senderId: user.id,
         },
@@ -84,9 +87,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Respect the admin on/off setting; leave data untouched when disabled
-    const cutoffSetting = await prisma.setting.findUnique({ where: { key: 'auto_cutoff_enabled' } });
-    const cutoffEnabled = cutoffSetting ? cutoffSetting.value === 'true' : true;
+    // Respect the admin on/off + time settings; leave data untouched when disabled
+    const [enabledSetting, timeSetting] = await Promise.all([
+      prisma.setting.findUnique({ where: { key: 'auto_cutoff_enabled' } }),
+      prisma.setting.findUnique({ where: { key: CUTOFF_TIME_KEY } }),
+    ]);
+    const cutoffEnabled = enabledSetting ? enabledSetting.value === 'true' : true;
     if (!cutoffEnabled) {
       return NextResponse.json({
         success: true,
@@ -95,6 +101,10 @@ export async function POST(req: NextRequest) {
         message: 'Auto cutoff nonaktif — data absen dibiarkan kosong.',
       });
     }
+
+    const cutoffTime = timeSetting && TIME_PATTERN.test(timeSetting.value)
+      ? timeSetting.value
+      : CUTOFF_TIME;
 
     const nowUTC = new Date();
     const todayStr = formatInTimeZone(nowUTC, TZ, 'yyyy-MM-dd');
@@ -124,7 +134,7 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < missed.length; i += CHUNK_SIZE) {
       const chunk = missed.slice(i, i + CHUNK_SIZE);
       const results = await Promise.all(
-        chunk.map((attendance) => processAttendance(attendance, todayStr, nowUTC))
+        chunk.map((attendance) => processAttendance(attendance, todayStr, nowUTC, cutoffTime))
       );
       autoCheckedOut += results.reduce((sum, value) => sum + value, 0);
     }
@@ -132,7 +142,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       autoCheckedOut,
-      cutoffTime: CUTOFF_TIME,
+      cutoffTime,
       time: nowUTC.toISOString(),
     });
   } catch (error) {

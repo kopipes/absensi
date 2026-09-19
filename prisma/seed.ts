@@ -204,11 +204,16 @@ async function main() {
     });
   }
 
-  // Seed app settings (auto cutoff default: on)
+  // Seed app settings (auto cutoff default: on, 19:00 WIB)
   await prisma.setting.upsert({
     where: { key: 'auto_cutoff_enabled' },
     update: {},
     create: { key: 'auto_cutoff_enabled', value: 'true' },
+  });
+  await prisma.setting.upsert({
+    where: { key: 'auto_cutoff_time' },
+    update: {},
+    create: { key: 'auto_cutoff_time', value: '19:00' },
   });
 
   // Seed departments

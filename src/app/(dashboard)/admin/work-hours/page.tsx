@@ -30,6 +30,7 @@ export default function AdminWorkHoursPage() {
   const [deleteTarget, setDeleteTarget] = useState<WorkSchedule | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [autoCutoff, setAutoCutoff] = useState(true);
+  const [autoCutoffTime, setAutoCutoffTime] = useState('19:00');
   const [savingCutoff, setSavingCutoff] = useState(false);
 
   async function load() {
@@ -40,8 +41,36 @@ export default function AdminWorkHoursPage() {
     const data = await sRes.json();
     if (data.success) setSchedules(data.data);
     const setData = await setRes.json();
-    if (setData.success) setAutoCutoff(setData.data.autoCutoffEnabled);
+    if (setData.success) {
+      setAutoCutoff(setData.data.autoCutoffEnabled);
+      setAutoCutoffTime(setData.data.autoCutoffTime || '19:00');
+    }
     setLoading(false);
+  }
+
+  async function saveCutoffTime(value: string) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+      toast.error('Jam cutoff tidak valid.');
+      return;
+    }
+    setSavingCutoff(true);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoCutoffTime: value }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAutoCutoffTime(data.data.autoCutoffTime);
+        toast.success('Jam cutoff disimpan.');
+      } else {
+        toast.error(data.error || 'Gagal menyimpan pengaturan.');
+      }
+    } catch {
+      toast.error('Gagal terhubung ke server.');
+    }
+    setSavingCutoff(false);
   }
 
   async function toggleAutoCutoff() {
@@ -159,9 +188,22 @@ export default function AdminWorkHoursPage() {
             <p className="font-semibold text-slate-800">Cutoff Absen Pulang Otomatis</p>
             <p className="text-xs text-slate-500 mt-0.5">
               {autoCutoff
-                ? 'Aktif: absen pulang yang kosong otomatis diisi pukul 19:00 WIB dan ditandai "Auto Cutoff".'
+                ? `Aktif: absen pulang yang kosong otomatis diisi pukul ${autoCutoffTime} WIB dan ditandai "Auto Cutoff".`
                 : 'Nonaktif: absen pulang dibiarkan kosong, dan tidak bisa diisi lagi setelah pergantian hari (00:00 WIB).'}
             </p>
+            {autoCutoff && (
+              <div className="mt-2 flex items-center gap-2">
+                <label className="text-xs font-medium text-slate-600">Jam cutoff (WIB)</label>
+                <input
+                  type="time"
+                  className="input w-auto py-1.5"
+                  value={autoCutoffTime}
+                  disabled={savingCutoff}
+                  onChange={(e) => setAutoCutoffTime(e.target.value)}
+                  onBlur={(e) => saveCutoffTime(e.target.value)}
+                />
+              </div>
+            )}
           </div>
           <button
             type="button"

@@ -62,7 +62,6 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/offices') ||
     pathname.startsWith('/api/work-schedules') ||
     pathname.startsWith('/api/holidays') ||
-    pathname.startsWith('/api/settings') ||
     pathname.startsWith('/api/users');
   if (isAdminApiPath && user.role !== 'ADMIN') {
     return NextResponse.json(
