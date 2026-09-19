@@ -111,9 +111,12 @@ npm ci 2>&1 | tail -5
 echo "5. Generating Prisma client..."
 npx prisma generate
 
-# 7. Push DB schema (safe — only adds new tables/columns, no data loss)
-echo "6. Pushing DB schema (safe migration)..."
-npx prisma db push --skip-generate
+# 7. Push DB schema. NOTE: the schema dropped legacy tables/columns
+# (OvertimeApproval, LeaveRequest, EarlyLeave, overtime columns), so this is
+# destructive. The DB was backed up above (db-$TIMESTAMP.db) and rollback is
+# available via `deploy-absensi.sh rollback`.
+echo "6. Pushing DB schema (destructive drops accepted; DB already backed up)..."
+npx prisma db push --skip-generate --accept-data-loss
 
 # 8. Seed only if DB has no users (true first deploy)
 echo "7. Checking if seed needed..."

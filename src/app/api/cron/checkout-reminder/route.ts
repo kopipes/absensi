@@ -6,9 +6,9 @@ const TZ = 'Asia/Jakarta';
 const CRON_SECRET = process.env.CRON_SECRET;
 
 export async function POST(req: NextRequest) {
-  // Validate cron secret
+  // Validate cron secret — fail closed when the secret is not configured
   const auth = req.headers.get('x-cron-secret');
-  if (CRON_SECRET && auth !== CRON_SECRET) {
+  if (!CRON_SECRET || auth !== CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

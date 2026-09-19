@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/cron'];
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/cron/auto-checkout', '/api/cron/checkout-reminder'];
 const ADMIN_ONLY_PATHS = ['/admin'];
 const MANAGER_PATHS = ['/team', '/reports'];
 

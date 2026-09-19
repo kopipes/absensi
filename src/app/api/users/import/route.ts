@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import * as XLSX from 'xlsx';
 
-const DEFAULT_PASSWORD = 'user123';
 const VALID_ROLES = ['ADMIN', 'MANAGER', 'SPV', 'USER'];
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_ROWS = 1000;
+const ALLOWED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
 
 interface SheetRow {
   [key: string]: unknown;
@@ -33,6 +36,13 @@ function resolveByName<T extends { name: string }>(items: T[], value?: string): 
   return items.find((item) => item.name.trim().toLowerCase() === target);
 }
 
+function generatePassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  return Array.from(randomBytes(10))
+    .map((byte) => chars[byte % chars.length])
+    .join('');
+}
+
 // GET: download the import template
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
@@ -52,7 +62,7 @@ export async function GET(req: NextRequest) {
     Kantor: 'Kantor Pusat',
     'Jadwal Kerja': 'Reguler (08:00 - 17:00)',
     Atasan: 'MGR001',
-    Password: 'user123',
+    Password: '',
   };
 
   const ws = XLSX.utils.json_to_sheet([example], { header: headers });
@@ -79,13 +89,32 @@ export async function POST(req: NextRequest) {
     if (!file || typeof file === 'string') {
       return badRequest('File Excel wajib diunggah.');
     }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return badRequest('Ukuran file terlalu besar. Maksimal 5MB.');
+    }
+    const fileName = file.name.toLowerCase();
+    if (!ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext))) {
+      return badRequest('Format file harus .xlsx, .xls, atau .csv.');
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) return badRequest('File Excel tidak memiliki sheet.');
+    if (buffer.length > MAX_UPLOAD_BYTES) {
+      return badRequest('Ukuran file terlalu besar. Maksimal 5MB.');
+    }
 
-    const rawRows = XLSX.utils.sheet_to_json<SheetRow>(workbook.Sheets[sheetName], { defval: '' });
+    let rawRows: SheetRow[];
+    try {
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) return badRequest('File Excel tidak memiliki sheet.');
+      rawRows = XLSX.utils.sheet_to_json<SheetRow>(workbook.Sheets[sheetName], { defval: '' });
+    } catch {
+      return badRequest('File Excel tidak valid atau rusak.');
+    }
+
+    if (rawRows.length > MAX_ROWS) {
+      return badRequest(`Terlalu banyak baris. Maksimal ${MAX_ROWS} baris per import.`);
+    }
 
     // Normalize row keys so header variants (Nama/Name, No HP/Phone, ...) map consistently
     const rows = rawRows.map((raw) => {
@@ -102,8 +131,17 @@ export async function POST(req: NextRequest) {
       prisma.user.findMany({ select: { id: true, nik: true, name: true } }),
     ]);
 
-    const defaultPasswordHash = await bcrypt.hash(DEFAULT_PASSWORD, 12);
+    // In-memory index so newly created rows (e.g. a manager defined in the same file) resolve
+    const userIndex = allUsers.map((u) => ({ id: u.id, nik: u.nik, name: u.name }));
+    const findByNikOrName = (raw: string) => {
+      const target = raw.toLowerCase();
+      return userIndex.find(
+        (u) => u.nik.toLowerCase() === target || u.name.toLowerCase() === target
+      );
+    };
+
     const errors: string[] = [];
+    const generatedCredentials: { nik: string; name: string; password: string }[] = [];
     let created = 0;
     let updated = 0;
     let skipped = 0;
@@ -126,59 +164,84 @@ export async function POST(req: NextRequest) {
       const address = pick(row, ['alamat', 'address']);
       const position = pick(row, ['jabatan', 'position', 'posisi']);
       const department = pick(row, ['departemen', 'department', 'dept', 'divisi']);
-      const roleRaw = (pick(row, ['role', 'peran']) || 'USER').toUpperCase();
-      const role = VALID_ROLES.includes(roleRaw) ? roleRaw : 'USER';
       const password = pick(row, ['password', 'sandi']);
 
-      const office = resolveByName(offices, pick(row, ['kantor', 'office', 'lokasi']));
-      const schedule = resolveByName(schedules, pick(row, ['jadwal', 'jadwalkerja', 'schedule', 'shift']));
+      const roleCell = pick(row, ['role', 'peran']);
+      let roleProvided = roleCell !== undefined;
+      let role = 'USER';
+      if (roleCell !== undefined) {
+        const upper = roleCell.toUpperCase();
+        if (VALID_ROLES.includes(upper)) {
+          role = upper;
+        } else {
+          errors.push(`Baris ${rowNumber}: role "${roleCell}" tidak valid, kolom role diabaikan.`);
+          roleProvided = false;
+        }
+      }
+
+      const officeName = pick(row, ['kantor', 'office', 'lokasi']);
+      const scheduleName = pick(row, ['jadwal', 'jadwalkerja', 'schedule', 'shift']);
       const managerRaw = pick(row, ['atasan', 'manager', 'managernik', 'nikatasan']);
-      const manager = managerRaw
-        ? allUsers.find(
-            (u) =>
-              u.nik.toLowerCase() === managerRaw.toLowerCase() ||
-              u.name.toLowerCase() === managerRaw.toLowerCase()
-          )
-        : undefined;
+
+      const office = resolveByName(offices, officeName);
+      const schedule = resolveByName(schedules, scheduleName);
+      const manager = managerRaw ? findByNikOrName(managerRaw) : undefined;
+
+      if (officeName !== undefined && !office) {
+        errors.push(`Baris ${rowNumber}: kantor "${officeName}" tidak ditemukan, kolom kantor diabaikan.`);
+      }
+      if (scheduleName !== undefined && !schedule) {
+        errors.push(`Baris ${rowNumber}: jadwal "${scheduleName}" tidak ditemukan, kolom jadwal diabaikan.`);
+      }
+      if (managerRaw !== undefined && !manager) {
+        errors.push(`Baris ${rowNumber}: atasan "${managerRaw}" tidak ditemukan, kolom atasan diabaikan.`);
+      }
+
+      const existing = userIndex.find((u) => u.nik === nik);
 
       try {
-        const existing = await prisma.user.findUnique({ where: { nik } });
-
         if (existing) {
-          await prisma.user.update({
-            where: { id: existing.id },
-            data: {
-              name,
-              email: email || null,
-              phone: phone || null,
-              address: address || null,
-              position: position || null,
-              department: department || null,
-              role,
-              officeId: office?.id ?? null,
-              workScheduleId: schedule?.id ?? null,
-              managerId: manager?.id ?? null,
-              ...(password ? { password: await bcrypt.hash(password, 12) } : {}),
-            },
-          });
+          // Only touch fields that were actually provided, so a partial sheet never clears data
+          const updateData: Record<string, unknown> = { name };
+          if (email !== undefined) updateData.email = email;
+          if (phone !== undefined) updateData.phone = phone;
+          if (address !== undefined) updateData.address = address;
+          if (position !== undefined) updateData.position = position;
+          if (department !== undefined) updateData.department = department;
+          if (roleProvided) updateData.role = role;
+          if (office) updateData.officeId = office.id;
+          if (schedule) updateData.workScheduleId = schedule.id;
+          if (manager) updateData.managerId = manager.id;
+          if (password) updateData.password = await bcrypt.hash(password, 12);
+
+          await prisma.user.update({ where: { id: existing.id }, data: updateData });
+          existing.name = name;
           updated++;
         } else {
-          await prisma.user.create({
+          let plainPassword = password;
+          if (!plainPassword) {
+            plainPassword = generatePassword();
+            generatedCredentials.push({ nik, name, password: plainPassword });
+          }
+
+          const createdUser = await prisma.user.create({
             data: {
               nik,
               name,
-              email: email || null,
-              phone: phone || null,
-              address: address || null,
-              position: position || null,
-              department: department || null,
+              email: email ?? null,
+              phone: phone ?? null,
+              address: address ?? null,
+              position: position ?? null,
+              department: department ?? null,
               role,
-              password: password ? await bcrypt.hash(password, 12) : defaultPasswordHash,
+              password: await bcrypt.hash(plainPassword, 12),
               officeId: office?.id ?? null,
               workScheduleId: schedule?.id ?? null,
               managerId: manager?.id ?? null,
             },
           });
+
+          userIndex.push({ id: createdUser.id, nik, name });
           created++;
         }
       } catch (err) {
@@ -193,7 +256,7 @@ export async function POST(req: NextRequest) {
     }
 
     return ok(
-      { total: rows.length, created, updated, skipped, errors },
+      { total: rows.length, created, updated, skipped, errors, generatedCredentials },
       `Import selesai: ${created} baru, ${updated} diperbarui, ${skipped} dilewati.`
     );
   } catch (error) {

@@ -95,6 +95,9 @@ export function calculateLateMinutes(
 /** Standard working day in minutes (8 hours). */
 export const STANDARD_WORK_MINUTES = 8 * 60;
 
+/** Jam cutoff absen pulang otomatis (WIB) bila karyawan lupa absen pulang. */
+export const AUTO_CHECKOUT_CUTOFF_TIME = '19:00';
+
 /** Minutes actually worked between check-in and check-out (0 if incomplete/invalid). */
 export function calculateWorkedMinutes(
   checkIn: Date | string | null | undefined,
@@ -133,7 +136,6 @@ export function getStatusBadgeColor(status: string): string {
   switch (status) {
     case 'PRESENT': return 'bg-green-100 text-green-700 border-green-200';
     case 'ABSENT':  return 'bg-red-100 text-red-700 border-red-200';
-    case 'LEAVE':   return 'bg-yellow-100 text-yellow-700 border-yellow-200';
     case 'HOLIDAY': return 'bg-blue-100 text-blue-700 border-blue-200';
     case 'OFF':     return 'bg-gray-100 text-gray-600 border-gray-200';
     default:        return 'bg-gray-100 text-gray-600 border-gray-200';
@@ -142,7 +144,7 @@ export function getStatusBadgeColor(status: string): string {
 
 export function getStatusLabel(status: string): string {
   const map: Record<string, string> = {
-    PRESENT: 'Hadir', ABSENT: 'Tidak Hadir', LEAVE: 'Cuti',
+    PRESENT: 'Hadir', ABSENT: 'Tidak Hadir',
     HOLIDAY: 'Libur', OFF: 'Hari Libur',
   };
   return map[status] ?? status;

@@ -37,6 +37,7 @@ export default function AdminUsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importCredentials, setImportCredentials] = useState<{ nik: string; name: string; password: string }[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -143,11 +144,12 @@ export default function AdminUsersPage() {
       const res = await fetch('/api/users/import', { method: 'POST', body: fd });
       const data = await res.json();
       if (data.success) {
-        const { created, updated, skipped, errors } = data.data;
+        const { created, updated, skipped, errors, generatedCredentials } = data.data;
         toast.success(`Import selesai: ${created} baru, ${updated} diperbarui, ${skipped} dilewati.`);
         if (errors?.length) {
           toast.error(`${errors.length} baris bermasalah. Contoh: ${errors[0]}`, { duration: 7000 });
         }
+        if (generatedCredentials?.length) setImportCredentials(generatedCredentials);
         await load();
       } else {
         toast.error(data.error || 'Gagal import karyawan.');
@@ -372,6 +374,45 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
+      {/* Generated credentials modal */}
+      {importCredentials && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto animate-slide-up">
+            <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Password Awal Karyawan</h2>
+                <p className="text-sm text-slate-500">Tampil sekali — segera salin dan sampaikan ke karyawan.</p>
+              </div>
+              <button onClick={() => setImportCredentials(null)} className="btn-ghost p-1.5"><X size={18} /></button>
+            </div>
+            <div className="p-6 space-y-3">
+              <div className="space-y-2">
+                {importCredentials.map((c) => (
+                  <div key={c.nik} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{c.name}</p>
+                      <p className="text-xs text-slate-400">{c.nik}</p>
+                    </div>
+                    <code className="text-sm font-mono text-slate-800">{c.password}</code>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400">Karyawan tanpa kolom Password mendapat password acak di atas dan sebaiknya menggantinya setelah login.</p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(importCredentials.map(c => `${c.nik}\t${c.name}\t${c.password}`).join('\n'));
+                    toast.success('Daftar password disalin.');
+                  }}
+                  className="btn-secondary flex-1"
+                >Salin Semua</button>
+                <button onClick={() => setImportCredentials(null)} className="btn-primary flex-1">Selesai</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete confirmation modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">

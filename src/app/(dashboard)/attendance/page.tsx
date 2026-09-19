@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { CameraOff, MapPin, CheckCircle2, XCircle, Loader2, Clock, History, AlertTriangle, X, Save, Edit2 } from 'lucide-react';
 import Webcam from 'react-webcam';
 import toast from 'react-hot-toast';
-import { cn, formatTime, formatDate, getStatusBadgeColor, getStatusLabel } from '@/lib/utils';
+import { cn, formatTime, formatDate, getStatusBadgeColor, getStatusLabel, AUTO_CHECKOUT_CUTOFF_TIME } from '@/lib/utils';
 import type { Attendance } from '@/types';
 
 type Tab = 'checkin' | 'history';
@@ -216,7 +216,7 @@ export default function AttendancePage() {
                     )}
                     {todayAttendance.isAutoCheckout && (
                       <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                        Pulang otomatis (cutoff 19:00)
+                        Pulang otomatis (cutoff {AUTO_CHECKOUT_CUTOFF_TIME})
                       </span>
                     )}
                     {todayAttendance.isOutOfRadius && (
@@ -321,7 +321,7 @@ export default function AttendancePage() {
           </div>
 
           <p className="text-center text-xs text-slate-400">
-            Lupa absen pulang? Sistem otomatis mencatat jam pulang pukul 19:00 WIB (cutoff).
+            Lupa absen pulang? Sistem otomatis mencatat jam pulang pukul {AUTO_CHECKOUT_CUTOFF_TIME} WIB (cutoff).
           </p>
 
           {!cameraReady && !cameraError && (

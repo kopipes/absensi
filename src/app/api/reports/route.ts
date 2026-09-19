@@ -99,7 +99,10 @@ export async function GET(req: NextRequest) {
       absent: attendances.filter((a) => a.status === 'ABSENT').length,
       late: attendances.filter((a) => a.isLate).length,
       shortage: attendances.filter(
-        (a) => calculateShortageMinutes(calculateWorkedMinutes(a.checkIn, a.checkOut)) > 0
+        (a) =>
+          !!a.checkIn &&
+          !!a.checkOut &&
+          calculateShortageMinutes(calculateWorkedMinutes(a.checkIn, a.checkOut)) > 0
       ).length,
       autoCutoff: attendances.filter((a) => a.isAutoCheckout).length,
       outOfRadius: attendances.filter((a) => a.isOutOfRadius).length,
