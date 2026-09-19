@@ -272,26 +272,52 @@ async function main() {
     });
   }
 
-  // One pending correction to exercise the approval flow
-  const target = await prisma.attendance.findUnique({
-    where: { userId_date: { userId: userIds['SAMPLE002'], date: days[1] } },
+  // One pending correction to exercise the approval flow.
+  // Targets a durably-incomplete day (no checkout) so approving it fills the checkout.
+  const correctionTarget = await prisma.attendance.findUnique({
+    where: { userId_date: { userId: userIds['SAMPLE002'], date: openDate } },
   });
-  if (target) {
-    const pending = await prisma.attendanceCorrection.findFirst({
-      where: { attendanceId: target.id, status: 'PENDING' },
+  if (correctionTarget) {
+    const reason = 'Lupa tap absen pulang, seharusnya 17:00 (contoh data)';
+    const existing = await prisma.attendanceCorrection.findFirst({
+      where: { attendanceId: correctionTarget.id, requestedById: userIds['SAMPLE002'] },
     });
-    if (!pending) {
+    if (existing) {
+      await prisma.attendanceCorrection.update({
+        where: { id: existing.id },
+        data: {
+          status: 'PENDING',
+          oldCheckIn: correctionTarget.checkIn,
+          oldCheckOut: correctionTarget.checkOut,
+          newCheckIn: null,
+          newCheckOut: at(openDate, '17:00'),
+          reason,
+          approvedById: null,
+        },
+      });
+    } else {
       await prisma.attendanceCorrection.create({
         data: {
-          attendanceId: target.id,
+          attendanceId: correctionTarget.id,
           requestedById: userIds['SAMPLE002'],
-          oldCheckIn: target.checkIn,
-          newCheckIn: target.checkIn ? new Date(target.checkIn.getTime() + 10 * 60_000) : at(days[1], '08:10'),
-          reason: 'Lupa tap absen masuk, seharusnya 08:10 (contoh data)',
+          oldCheckIn: correctionTarget.checkIn,
+          oldCheckOut: correctionTarget.checkOut,
+          newCheckIn: null,
+          newCheckOut: at(openDate, '17:00'),
+          reason,
           status: 'PENDING',
         },
       });
     }
+
+    // Drop the obsolete sample correction that targeted a different day/reason.
+    await prisma.attendanceCorrection.deleteMany({
+      where: {
+        requestedById: userIds['SAMPLE002'],
+        reason: { contains: '(contoh data)' },
+        attendanceId: { not: correctionTarget.id },
+      },
+    });
   }
 
   // Notifications sample for the manager
