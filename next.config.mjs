@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // Tree-shake icon imports so each page ships only the icons it uses
+    optimizePackageImports: ['lucide-react'],
+  },
   images: {
     remotePatterns: [
       {

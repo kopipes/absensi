@@ -87,6 +87,10 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status') || '';
     const view = searchParams.get('view') || 'detail';
 
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(searchParams.get('pageSize') || '50', 10) || 50));
+    const search = (searchParams.get('search') || '').trim().slice(0, 100);
+
     // Validate format
     if (!['json', 'xlsx'].includes(format)) return badRequest('Format tidak valid.');
     if (!['detail', 'summary'].includes(view)) return badRequest('View tidak valid.');
@@ -102,32 +106,71 @@ export async function GET(req: NextRequest) {
       return badRequest('Status tidak valid.');
     }
 
-    const attendances = await prisma.attendance.findMany({
-      where: {
-        ...(startDate && endDate ? { date: { gte: startDate, lte: endDate } } : {}),
-        ...(userId ? { userId } : {}),
-        ...(department ? { user: { department } } : {}),
-        ...(status ? { status } : {}),
-        ...(authUser.role !== 'ADMIN' ? { user: { managerId: authUser.userId } } : {}),
+    // Merge user-level filters so multiple conditions don't overwrite each other
+    const userWhere: Record<string, unknown> = {};
+    if (department) userWhere.department = department;
+    if (authUser.role !== 'ADMIN') userWhere.managerId = authUser.userId;
+    if (search) {
+      userWhere.OR = [{ name: { contains: search } }, { nik: { contains: search } }];
+    }
+
+    const where = {
+      ...(startDate && endDate ? { date: { gte: startDate, lte: endDate } } : {}),
+      ...(userId ? { userId } : {}),
+      ...(status ? { status } : {}),
+      ...(Object.keys(userWhere).length ? { user: userWhere } : {}),
+    };
+
+    // One lightweight pass over the range powers both the stats and the recap
+    const aggregateRows = await prisma.attendance.findMany({
+      where,
+      select: {
+        userId: true,
+        checkIn: true,
+        checkOut: true,
+        isAutoCheckout: true,
+        isOutOfRadius: true,
+        status: true,
+        user: { select: { id: true, nik: true, name: true, department: true } },
       },
-      include: {
-        user: {
-          select: { id: true, nik: true, name: true, department: true, position: true },
-        },
-      },
-      orderBy: [{ date: 'asc' }, { user: { name: 'asc' } }],
     });
+
+    const total = aggregateRows.length;
+    const stats = {
+      total,
+      present: aggregateRows.filter((a) => a.status === 'PRESENT').length,
+      absent: aggregateRows.filter((a) => a.status === 'ABSENT').length,
+      shortage: aggregateRows.filter(
+        (a) =>
+          !!a.checkIn &&
+          !!a.checkOut &&
+          !a.isAutoCheckout &&
+          calculateShortageMinutes(calculateWorkedMinutes(a.checkIn, a.checkOut)) > 0
+      ).length,
+      autoCutoff: aggregateRows.filter((a) => a.isAutoCheckout).length,
+      outOfRadius: aggregateRows.filter((a) => a.isOutOfRadius).length,
+    };
+    const summary = buildUserSummary(aggregateRows);
 
     // Sanitize filename parts
     const safeStart = startDate.replace(/[^0-9-]/g, '') || 'all';
     const safeEnd = endDate.replace(/[^0-9-]/g, '') || 'all';
 
     if (format === 'xlsx') {
+      // Export needs the full set for the range (no pagination)
+      const exportRows = await prisma.attendance.findMany({
+        where,
+        include: {
+          user: { select: { id: true, nik: true, name: true, department: true, position: true } },
+        },
+        orderBy: [{ date: 'asc' }, { user: { name: 'asc' } }],
+      });
+
       const wb = XLSX.utils.book_new();
       let filename: string;
 
       if (view === 'summary') {
-        const summaryRows = buildUserSummary(attendances).map((s) => ({
+        const summaryRows = summary.map((s) => ({
           NIK: s.nik,
           Nama: s.name,
           Departemen: s.department,
@@ -148,7 +191,7 @@ export async function GET(req: NextRequest) {
         XLSX.utils.book_append_sheet(wb, ws, 'Rekap per Karyawan');
         filename = `rekap-absensi-${safeStart}-${safeEnd}.xlsx`;
       } else {
-        const rows = attendances.map((a) => {
+        const rows = exportRows.map((a) => {
           const worked = calculateWorkedMinutes(a.checkIn, a.checkOut);
           const shortage = calculateShortageMinutes(worked);
           return {
@@ -196,22 +239,28 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const stats = {
-      total: attendances.length,
-      present: attendances.filter((a) => a.status === 'PRESENT').length,
-      absent: attendances.filter((a) => a.status === 'ABSENT').length,
-      shortage: attendances.filter(
-        (a) =>
-          !!a.checkIn &&
-          !!a.checkOut &&
-          !a.isAutoCheckout &&
-          calculateShortageMinutes(calculateWorkedMinutes(a.checkIn, a.checkOut)) > 0
-      ).length,
-      autoCutoff: attendances.filter((a) => a.isAutoCheckout).length,
-      outOfRadius: attendances.filter((a) => a.isOutOfRadius).length,
-    };
+    // Paginated detail rows for the current page only
+    const attendances = await prisma.attendance.findMany({
+      where,
+      include: {
+        user: { select: { id: true, nik: true, name: true, department: true, position: true } },
+      },
+      orderBy: [{ date: 'desc' }, { user: { name: 'asc' } }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
 
-    return ok({ attendances, stats, summary: buildUserSummary(attendances) });
+    return ok({
+      attendances,
+      stats,
+      summary,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
+    });
   } catch (error) {
     console.error('[REPORTS]', error);
     return serverError();

@@ -108,6 +108,8 @@ model Attendance {
   corrections     AttendanceCorrection[]
 
   @@unique([userId, date])
+  @@index([date])
+  @@index([date, status])
 }
 
 model AttendanceCorrection {
@@ -126,6 +128,11 @@ model AttendanceCorrection {
   status        String     @default("PENDING")
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+
+  @@index([status])
+  @@index([attendanceId])
+  @@index([requestedById])
+  @@index([createdAt])
 }
 
 model Department {

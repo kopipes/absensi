@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Download, Search, BarChart3, Filter, MapPin, X, ExternalLink, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -44,7 +44,9 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false);
   const [selected, setSelected] = useState<Attendance | null>(null);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 25;
 
   // Load departments from master data
   useEffect(() => {
@@ -54,17 +56,26 @@ export default function ReportsPage() {
       .catch(() => {});
   }, []);
 
-  async function loadReport() {
+  const loadReport = useCallback(async (targetPage = 1) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ startDate, endDate });
+      const params = new URLSearchParams({
+        startDate,
+        endDate,
+        page: String(targetPage),
+        pageSize: String(PAGE_SIZE),
+      });
       if (department) params.set('department', department);
+      if (search.trim()) params.set('search', search.trim());
       const res = await fetch(`/api/reports?${params}`);
       const data = await res.json();
       if (data.success) {
         setAttendances(data.data.attendances);
         setStats(data.data.stats);
         setSummary(data.data.summary || []);
+        setPage(data.data.pagination?.page ?? targetPage);
+        setTotalPages(data.data.pagination?.totalPages ?? 1);
+        setTotal(data.data.pagination?.total ?? 0);
       } else {
         toast.error(data.error || 'Gagal memuat laporan.');
       }
@@ -73,9 +84,13 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [startDate, endDate, department, search]);
 
-  useEffect(() => { loadReport(); }, []);
+  // Debounced reload whenever any filter changes (also covers initial load)
+  useEffect(() => {
+    const t = setTimeout(() => { loadReport(1); }, 300);
+    return () => clearTimeout(t);
+  }, [loadReport]);
 
   async function handleExport() {
     setExporting(true);
@@ -99,20 +114,7 @@ export default function ReportsPage() {
     }
   }
 
-  // Reset page when search/data changes
-  const filtered = useMemo(() => {
-    setPage(1);
-    return attendances
-      .filter((a) =>
-        !search ||
-        a.user?.name?.toLowerCase().includes(search.toLowerCase()) ||
-        a.user?.nik?.toLowerCase().includes(search.toLowerCase())
-      )
-      .sort((a, b) => b.date.localeCompare(a.date)); // terbaru di atas
-  }, [attendances, search]);
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Rows, filters, stats and pagination all come from the server
 
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
@@ -164,7 +166,7 @@ export default function ReportsPage() {
               ))}
             </select>
           </div>
-          <button onClick={loadReport} disabled={loading} className="btn-primary self-end">
+          <button onClick={() => loadReport(1)} disabled={loading} className="btn-primary self-end">
             <Filter size={15} /> {loading ? 'Memuat...' : 'Tampilkan'}
           </button>
         </div>
@@ -254,7 +256,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Hint */}
-      {filtered.length > 0 && (
+      {attendances.length > 0 && (
         <p className="text-xs text-slate-400 -mt-2">Klik baris untuk melihat detail foto & lokasi GPS</p>
       )}
 
@@ -264,7 +266,7 @@ export default function ReportsPage() {
           <div className="space-y-0.5 p-2">
             {[...Array(8)].map((_, i) => <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />)}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : attendances.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
             <BarChart3 size={36} className="mx-auto mb-2 opacity-40" />
             <p>Tidak ada data untuk filter yang dipilih.</p>
@@ -285,7 +287,7 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {paginated.map((a) => {
+                {attendances.map((a) => {
                   const worked = calculateWorkedMinutes(a.checkIn, a.checkOut);
                   const shortage = a.checkIn && a.checkOut ? calculateShortageMinutes(worked) : 0;
                   return (
@@ -352,7 +354,7 @@ export default function ReportsPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-slate-500">
-            Menampilkan {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} dari {filtered.length} data
+            Menampilkan {total === 0 ? 0 : ((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} dari {total} data
           </p>
           <div className="flex items-center gap-1">
             <button
