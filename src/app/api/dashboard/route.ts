@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, serverError } from '@/lib/api';
+import { userScopeFilter } from '@/lib/rbac';
 import { getTodayString } from '@/lib/utils';
 
 export async function GET(req: NextRequest) {
@@ -19,17 +20,15 @@ export async function GET(req: NextRequest) {
       return ok({ todayAttendance: attendance });
     }
 
-    const whereTeam = authUser.role !== 'ADMIN'
-      ? { managerId: authUser.userId }
-      : {};
+    const scope = userScopeFilter(authUser.role, authUser.userId);
 
     const [totalEmployees, todayAttendances, pendingCorrections] =
       await Promise.all([
-        prisma.user.count({ where: { isActive: true, role: 'USER', ...whereTeam } }),
+        prisma.user.count({ where: { isActive: true, role: 'USER', ...(scope ?? {}) } }),
         prisma.attendance.findMany({
           where: {
             date: today,
-            ...(authUser.role !== 'ADMIN' ? { user: { managerId: authUser.userId } } : {}),
+            ...(scope ? { user: scope } : {}),
           },
           include: {
             user: {
@@ -44,9 +43,7 @@ export async function GET(req: NextRequest) {
         prisma.attendanceCorrection.count({
           where: {
             status: 'PENDING',
-            ...(authUser.role !== 'ADMIN'
-              ? { attendance: { user: { managerId: authUser.userId } } }
-              : {}),
+            ...(scope ? { attendance: { user: scope } } : {}),
           },
         }),
       ]);

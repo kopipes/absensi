@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { canViewUser } from '@/lib/rbac';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const authUser = await getAuthUser(req);
@@ -9,9 +10,21 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   try {
     const correction = await prisma.attendanceCorrection.findUnique({
       where: { id: params.id },
-      include: { attendance: true, requestedBy: true },
+      include: {
+        attendance: { include: { user: { select: { id: true, managerId: true } } } },
+        requestedBy: {
+          select: { id: true, name: true, nik: true, role: true, department: true, position: true },
+        },
+      },
     });
     if (!correction) return badRequest('Data koreksi tidak ditemukan.');
+
+    const owner = correction.attendance?.user;
+    const allowed =
+      (!!owner && canViewUser(authUser.role, authUser.userId, owner)) ||
+      correction.requestedById === authUser.userId;
+    if (!allowed) return forbidden();
+
     return ok(correction);
   } catch (error) {
     console.error('[GET CORRECTION]', error);
@@ -34,9 +47,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const correction = await prisma.attendanceCorrection.findUnique({
       where: { id: params.id },
-      include: { attendance: true, requestedBy: true },
+      include: { attendance: { include: { user: { select: { id: true, managerId: true } } } } },
     });
     if (!correction) return badRequest('Data koreksi tidak ditemukan.');
+    if (!canViewUser(authUser.role, authUser.userId, correction.attendance.user)) return forbidden();
     if (correction.status !== 'PENDING') {
       return badRequest('Koreksi ini sudah diproses sebelumnya.');
     }

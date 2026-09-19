@@ -1,14 +1,16 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { userScopeFilter } from '@/lib/rbac';
 
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
   if (!authUser) return unauthorized();
   if (!['ADMIN', 'MANAGER', 'SPV'].includes(authUser.role)) return forbidden();
 
+  const scope = userScopeFilter(authUser.role, authUser.userId);
   const corrections = await prisma.attendanceCorrection.findMany({
-    where: authUser.role !== 'ADMIN' ? { attendance: { user: { managerId: authUser.userId } } } : {},
+    where: scope ? { attendance: { user: scope } } : {},
     include: {
       requestedBy: { select: { id: true, name: true, nik: true, department: true } },
       approvedBy: { select: { id: true, name: true } },

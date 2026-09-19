@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { userScopeFilter } from '@/lib/rbac';
 import { calculateDistance, getTodayString } from '@/lib/utils';
 import { saveAttendancePhoto, deleteAttendancePhoto, MAX_PHOTO_BYTES } from '@/lib/photos';
 
@@ -27,15 +29,17 @@ export async function GET(req: NextRequest) {
         ? { date: { gte: startDate, lte: endDate } }
         : {};
 
+    const userFilter: Prisma.UserWhereInput = {};
+    if (department && authUser.role !== 'USER') userFilter.department = department;
+    const scope = userScopeFilter(authUser.role, authUser.userId);
+    if (scope) Object.assign(userFilter, scope);
+
     const attendances = await prisma.attendance.findMany({
       where: {
         ...(targetUserId ? { userId: targetUserId } : {}),
         ...dateFilter,
         ...(status ? { status } : {}),
-        ...(department && authUser.role !== 'USER' ? { user: { department } } : {}),
-        ...(authUser.role === 'MANAGER' || authUser.role === 'SPV'
-          ? { user: { managerId: authUser.userId } }
-          : {}),
+        ...(Object.keys(userFilter).length ? { user: userFilter } : {}),
       },
       include: {
         user: {

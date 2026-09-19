@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { userScopeFilter } from '@/lib/rbac';
 import { calculateWorkedMinutes, calculateShortageMinutes, STANDARD_WORK_MINUTES, formatMinutes } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 
@@ -107,12 +109,15 @@ export async function GET(req: NextRequest) {
     }
 
     // Merge user-level filters so multiple conditions don't overwrite each other
-    const userWhere: Record<string, unknown> = {};
+    const userWhere: Prisma.UserWhereInput = {};
     if (department) userWhere.department = department;
-    if (authUser.role !== 'ADMIN') userWhere.managerId = authUser.userId;
+    const scope = userScopeFilter(authUser.role, authUser.userId);
+    const userAnd: Prisma.UserWhereInput[] = [];
+    if (scope) userAnd.push(scope);
     if (search) {
-      userWhere.OR = [{ name: { contains: search } }, { nik: { contains: search } }];
+      userAnd.push({ OR: [{ name: { contains: search } }, { nik: { contains: search } }] });
     }
+    if (userAnd.length) userWhere.AND = userAnd;
 
     const where = {
       ...(startDate && endDate ? { date: { gte: startDate, lte: endDate } } : {}),

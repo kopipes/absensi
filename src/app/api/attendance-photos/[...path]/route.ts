@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser } from '@/lib/api';
+import { canViewUser } from '@/lib/rbac';
 import { isValidPhotoKey, resolvePhotoPath } from '@/lib/photos';
 
 export async function GET(req: NextRequest, { params }: { params: { path: string[] } }) {
@@ -23,10 +24,10 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
     return NextResponse.json({ error: 'Foto tidak ditemukan.' }, { status: 404 });
   }
 
-  const allowed =
-    authUser.role === 'ADMIN' ||
-    attendance.userId === authUser.userId ||
-    attendance.user.managerId === authUser.userId;
+  const allowed = canViewUser(authUser.role, authUser.userId, {
+    id: attendance.userId,
+    managerId: attendance.user.managerId,
+  });
   if (!allowed) {
     return NextResponse.json({ error: 'Tidak memiliki akses.' }, { status: 403 });
   }

@@ -47,9 +47,11 @@
 | Role | Akses |
 |---|---|
 | **Admin** | Kelola karyawan, kantor, jadwal kerja, hari libur, semua laporan, koreksi absen, override lembur |
-| **Manager** | Pantau tim/departemen, approve/reject lembur & koreksi anak buah, terima notifikasi |
-| **SPV** | Pantau tim kecil, approve/reject lembur & koreksi anak buah, terima notifikasi |
+| **Manager** | Pantau **seluruh karyawan**, approve/reject koreksi, terima notifikasi |
+| **SPV** | Pantau **dirinya & anak buah langsung** (`managerId`), approve/reject koreksi anak buah, terima notifikasi |
 | **User** | Check-in/out, ajukan lembur manual, izin pulang awal, lihat riwayat pribadi |
+
+> **Cakupan data:** ADMIN & MANAGER melihat seluruh karyawan; SPV melihat dirinya sendiri dan bawahan langsung (`managerId`); USER hanya data pribadi.
 
 ---
 

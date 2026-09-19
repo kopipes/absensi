@@ -23,11 +23,11 @@
 | Role | Deskripsi | Akses Utama |
 |---|---|---|
 | **Admin** | HR/IT, pengelola sistem penuh | Kelola user, kelola master data (lokasi kantor, jam kerja, hari libur), kelola role, lihat semua laporan, export, koreksi absen, override lembur |
-| **Manager** | Kepala departemen / atasan level lebih tinggi | Lihat & pantau laporan tim/departemennya, approve/reject lembur & koreksi anak buah, terima notifikasi |
-| **SPV** | Supervisor, atasan langsung di lapangan/tim kecil | Lihat & pantau laporan tim yang disupervisi, approve/reject lembur & koreksi anak buah, terima notifikasi |
+| **Manager** | Kepala departemen / atasan level lebih tinggi | Lihat & pantau laporan **seluruh karyawan**, approve/reject koreksi, terima notifikasi |
+| **SPV** | Supervisor, atasan langsung di lapangan/tim kecil | Lihat & pantau laporan **dirinya & anak buah langsung** (`managerId`), approve/reject koreksi anak buah, terima notifikasi |
 | **User** | Karyawan biasa | Login, absen masuk/pulang, ajukan lembur manual, izin pulang awal, lihat riwayat absensi pribadi |
 
-> **Catatan:** Manager dan SPV punya hak akses yang mirip (memantau tim, menerima notifikasi, melakukan koreksi), bedanya hanya di cakupan tim yang mereka awasi (Manager biasanya level departemen, SPV level tim/shift yang lebih kecil). Struktur tim (siapa atasan siapa) didefinisikan di data master user (field `managerId`).
+> **Catatan:** Manager dan SPV sama-sama memantau tim, menerima notifikasi, dan melakukan koreksi, tetapi cakupan datanya berbeda: **Manager melihat seluruh karyawan**, sedangkan **SPV hanya melihat dirinya sendiri dan bawahan langsungnya**. Struktur tim (siapa atasan siapa) didefinisikan di data master user (field `managerId`).
 
 > **Fallback atasan:** Jika karyawan tidak punya `managerId`, notifikasi lembur dikirim ke Admin pertama yang aktif di sistem.
 
@@ -41,7 +41,7 @@
 | No. Telp | String | Nomor HP |
 | Jabatan | String | Jabatan/posisi |
 | Departemen | String | Untuk filter laporan per departemen |
-| Atasan (managerId) | Reference ke User | Menentukan manager/SPV mana yang menerima notifikasi & bisa approve lembur/koreksi absen user ini |
+| Atasan (managerId) | Reference ke User | Menentukan atasan yang menerima notifikasi & (bagi SPV) siapa saja yang masuk cakupan data/koreksinya. Manager melihat seluruh karyawan. |
 | Role | String | ADMIN / MANAGER / SPV / USER |
 | Lokasi Kantor (officeId) | Reference ke Office | Untuk cek radius geofence |
 | Jadwal Kerja (workScheduleId) | Reference ke WorkSchedule | Untuk hitung telat & lembur |
@@ -146,7 +146,7 @@
 
 ### 5.11 Laporan & Export
 - Filter: rentang tanggal, nama/NIK, departemen, status (telat/lembur/dll).
-- Akses sesuai role: Admin lihat semua; Manager/SPV hanya tim mereka (berdasarkan `managerId`); User hanya data pribadi.
+- Akses sesuai role: Admin & Manager lihat semua; SPV hanya dirinya & anak buah langsung (berdasarkan `managerId`); User hanya data pribadi.
 - Export ke Excel (.xlsx) sesuai filter aktif.
 
 ### 5.12 Notifikasi In-App
@@ -317,11 +317,11 @@ Model utama di `prisma/schema.prisma`:
 | Role | Deskripsi | Akses Utama |
 |---|---|---|
 | **Admin** | HR/IT, pengelola sistem penuh | Kelola user, kelola master data (lokasi kantor, jam kerja, hari libur), kelola role, lihat semua laporan, export, koreksi absen |
-| **Manager** | Kepala departemen / atasan level lebih tinggi | Lihat & pantau laporan tim/departemennya, terima notifikasi lembur & luar radius, koreksi absen anak buah |
-| **SPV** | Supervisor, atasan langsung di lapangan/tim kecil | Lihat & pantau laporan tim yang disupervisi, terima notifikasi lembur & luar radius, koreksi absen anak buah |
+| **Manager** | Kepala departemen / atasan level lebih tinggi | Lihat & pantau laporan **seluruh karyawan**, terima notifikasi lembur & luar radius, koreksi absen |
+| **SPV** | Supervisor, atasan langsung di lapangan/tim kecil | Lihat & pantau laporan **dirinya & anak buah langsung** (`managerId`), terima notifikasi lembur & luar radius, koreksi absen anak buah |
 | **User** | Karyawan biasa | Login, absen masuk/pulang, lihat riwayat absensi pribadi |
 
-> **Catatan:** Manager dan SPV punya hak akses yang mirip (memantau tim, menerima notifikasi, melakukan koreksi), bedanya hanya di cakupan tim yang mereka awasi (Manager biasanya level departemen, SPV level tim/shift yang lebih kecil). Struktur tim (siapa atasan siapa) perlu didefinisikan di data master user (field "atasan/reports to").
+> **Catatan:** Manager dan SPV sama-sama memantau tim, menerima notifikasi, dan melakukan koreksi, tetapi cakupan datanya berbeda: **Manager melihat seluruh karyawan**, sedangkan **SPV hanya melihat dirinya sendiri dan bawahan langsungnya**. Struktur tim (siapa atasan siapa) perlu didefinisikan di data master user (field "atasan/reports to").
 
 ## 4. Data Model — Master User
 
@@ -333,7 +333,7 @@ Model utama di `prisma/schema.prisma`:
 | No. Telp | String | Nomor HP (juga dipakai untuk login/OTP jika diperlukan) |
 | Jabatan | String | Jabatan/posisi |
 | Departemen | String | Untuk filter laporan per departemen |
-| Atasan (Reports To) | Reference ke User | Menentukan manager/SPV mana yang menerima notifikasi & bisa koreksi absen user ini |
+| Atasan (Reports To) | Reference ke User | Menentukan atasan yang menerima notifikasi & (bagi SPV) siapa saja yang masuk cakupan data/koreksinya. Manager melihat seluruh karyawan. |
 | Role | Enum | admin / manager / spv / user |
 | Lokasi Kantor Terdaftar | Reference | Untuk cek radius geofence (lihat poin 6.4) |
 | Status | Enum | Aktif / Nonaktif |
@@ -405,8 +405,8 @@ Model utama di `prisma/schema.prisma`:
 - List laporan absensi menampilkan: **Nama, NIK, Tanggal, Jam Masuk, Jam Pulang, Status Telat (+menit), Lembur (+menit), Lokasi (dalam/luar radius), Foto**.
 - Filter: rentang tanggal, nama/NIK, departemen, cabang, status (telat/tidak, lembur/tidak).
 - Akses laporan sesuai role:
-  - Admin: semua data.
-  - Manager & SPV: hanya tim/departemen yang mereka awasi (berdasarkan field "Atasan/Reports To" di data user).
+  - Admin & Manager: semua data.
+  - SPV: hanya dirinya & anak buah langsung (berdasarkan field "Atasan/Reports To" di data user).
   - User: hanya data pribadi.
 - Export ke **Excel (.xlsx)** sesuai filter yang aktif.
 - Rekap bulanan otomatis (opsional, fase 2): total hari kerja, total telat, total menit lembur per karyawan per bulan — berguna untuk payroll.
