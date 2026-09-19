@@ -31,3 +31,6 @@ next-env.d.ts
 # Misc
 .vercel
 .turbo
+
+# Uploads (attendance photos)
+/uploads

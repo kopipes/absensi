@@ -21,6 +21,7 @@ export default function AttendancePage() {
   const [history, setHistory] = useState<Attendance[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [hasSchedule, setHasSchedule] = useState<boolean>(true);
+  const [profile, setProfile] = useState<{ name: string; nik: string } | null>(null);
 
   // Correction state
   const [correctionTarget, setCorrectionTarget] = useState<Attendance | null>(null);
@@ -47,6 +48,7 @@ export default function AttendancePage() {
     fetch('/api/auth/me').then(r => r.json()).then(d => {
       if (d.success) {
         setHasSchedule(!!d.data.workScheduleId);
+        setProfile({ name: d.data.name, nik: d.data.nik });
       }
     });
     getLocation();
@@ -109,10 +111,69 @@ export default function AttendancePage() {
   const canCheckIn = !todayAttendance?.checkIn;
   const canCheckOut = !!(todayAttendance?.checkIn && !todayAttendance?.checkOut);
 
+  function buildWatermarkLines(): string[] {
+    // WIB wall-clock stamp (UTC+7), independent of the device timezone
+    const wib = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const stamp = wib.toISOString().slice(0, 16).replace('T', ' ');
+    const lines: string[] = [];
+    if (profile) lines.push(`${profile.name} (${profile.nik})`);
+    lines.push(`${stamp} WIB`);
+    if (location) lines.push(`${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`);
+    if (location?.address) lines.push(location.address);
+    return lines;
+  }
+
+  // Capture the live video frame at up to 1280px wide, burn in a location/identity
+  // watermark, and adaptively compress so the payload stays small but readable.
+  function capturePhoto(): string | null {
+    const video = webcamRef.current?.video as HTMLVideoElement | undefined;
+    if (!video || !video.videoWidth || !video.videoHeight) return null;
+
+    const maxWidth = 1280;
+    const scale = Math.min(1, maxWidth / video.videoWidth);
+    const width = Math.round(video.videoWidth * scale);
+    const height = Math.round(video.videoHeight * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.drawImage(video, 0, 0, width, height);
+
+    const lines = buildWatermarkLines();
+    const fontSize = Math.max(12, Math.round(width * 0.022));
+    const lineHeight = Math.round(fontSize * 1.35);
+    const padding = Math.round(fontSize * 0.7);
+    const barHeight = lines.length * lineHeight + padding * 2;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(0, height - barHeight, width, barHeight);
+    ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 3;
+    lines.forEach((line, index) => {
+      ctx.fillText(line, padding, height - barHeight + padding + index * lineHeight, width - padding * 2);
+    });
+
+    // Adaptive quality: keep as much detail as possible, only shrink when the file is big
+    const maxBase64Length = 350_000; // ~255 KB binary, under the 400 KB server cap
+    let quality = 0.75;
+    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+    while (dataUrl.length > maxBase64Length && quality > 0.55) {
+      quality = Math.round((quality - 0.05) * 100) / 100;
+      dataUrl = canvas.toDataURL('image/jpeg', quality);
+    }
+    return dataUrl;
+  }
+
   async function handleAttendance(type: 'checkin' | 'checkout') {
     if (!location) { toast.error('Lokasi belum terdeteksi. Tap "Perbarui Lokasi".'); return; }
     if (!webcamRef.current) { toast.error('Kamera belum siap.'); return; }
-    const photo = webcamRef.current.getScreenshot();
+    const photo = capturePhoto();
     if (!photo) { toast.error('Gagal mengambil foto. Pastikan kamera aktif.'); return; }
 
     setLoading(true);
@@ -246,7 +307,7 @@ export default function AttendancePage() {
                   ref={webcamRef}
                   audio={false}
                   screenshotFormat="image/jpeg"
-                  videoConstraints={{ facingMode: 'user', width: 480, height: 360 }}
+                  videoConstraints={{ facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }}
                   className="w-full h-full object-cover camera-preview"
                   onUserMedia={() => setCameraReady(true)}
                   onUserMediaError={(e) => setCameraError(typeof e === 'string' ? e : 'Izin kamera ditolak.')}
@@ -264,8 +325,11 @@ export default function AttendancePage() {
                 </div>
               )}
               {cameraReady && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-40 h-48 rounded-full border-2 border-white/50 border-dashed" />
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute inset-3 border-2 border-white/40 border-dashed rounded-xl" />
+                  <p className="absolute bottom-2 inset-x-0 text-center text-[11px] font-medium text-white/85">
+                    Pastikan wajah &amp; latar sekitar (gedung/lokasi) terlihat
+                  </p>
                 </div>
               )}
             </div>

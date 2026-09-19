@@ -98,6 +98,16 @@ export const STANDARD_WORK_MINUTES = 8 * 60;
 /** Jam cutoff absen pulang otomatis (WIB) bila karyawan lupa absen pulang. */
 export const AUTO_CHECKOUT_CUTOFF_TIME = '19:00';
 
+/**
+ * Build a displayable URL for a stored attendance photo.
+ * Supports both the new storage key (relative path) and legacy base64 data URLs.
+ */
+export function getPhotoUrl(value?: string | null): string {
+  if (!value) return '';
+  if (value.startsWith('data:') || value.startsWith('/') || value.startsWith('http')) return value;
+  return `/api/attendance-photos/${value}`;
+}
+
 /** Minutes actually worked between check-in and check-out (0 if incomplete/invalid). */
 export function calculateWorkedMinutes(
   checkIn: Date | string | null | undefined,

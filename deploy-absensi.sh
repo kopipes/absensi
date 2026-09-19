@@ -50,6 +50,7 @@ if [ "$1" == "rollback" ]; then
 
   rsync -a --delete \
     --exclude='prisma/dev.db' \
+    --exclude='uploads' \
     --exclude='.env' \
     "$BACKUP_DIR/$LATEST/" "$APP_DIR/"
 
@@ -69,6 +70,7 @@ if [ -d "$APP_DIR/.git" ]; then
   mkdir -p "$BACKUP_DIR/$TIMESTAMP"
   rsync -a \
     --exclude='prisma/dev.db' \
+    --exclude='uploads' \
     --exclude='node_modules' \
     --exclude='.next' \
     --exclude='.env' \
@@ -113,6 +115,14 @@ fi
 
 # Ensure DATABASE_URL is always absolute path
 sudo bash -c "sed -i 's|DATABASE_URL=file:./prisma/dev.db|DATABASE_URL=file:$APP_DIR/prisma/dev.db|' $APP_DIR/.env" 2>/dev/null || true
+
+# Ensure UPLOAD_DIR is absolute and the directory exists (attendance photos)
+if grep -q '^UPLOAD_DIR=' "$APP_DIR/.env" 2>/dev/null; then
+  sudo bash -c "sed -i 's|^UPLOAD_DIR=.*|UPLOAD_DIR=$APP_DIR/uploads|' $APP_DIR/.env" 2>/dev/null || true
+else
+  echo "UPLOAD_DIR=$APP_DIR/uploads" >> "$APP_DIR/.env" 2>/dev/null || true
+fi
+mkdir -p "$APP_DIR/uploads"
 
 # 5. Install all dependencies (devDeps needed for Next.js build)
 echo "4. Installing dependencies..."

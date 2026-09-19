@@ -2,9 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
 import { calculateDistance, calculateLateMinutes, getTodayString } from '@/lib/utils';
-
-// Max decoded photo size (1MB) — client compresses before upload
-const MAX_PHOTO_BYTES = 1 * 1024 * 1024;
+import { saveAttendancePhoto, deleteAttendancePhoto, MAX_PHOTO_BYTES } from '@/lib/photos';
 
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
@@ -73,8 +71,8 @@ export async function POST(req: NextRequest) {
     if (!photo.startsWith('data:image/')) {
       return badRequest('Format foto tidak valid.');
     }
-    if (photo.length > MAX_PHOTO_BYTES * 1.37) { // base64 overhead
-      return badRequest('Ukuran foto terlalu besar. Maksimal 1MB.');
+    if (photo.length > MAX_PHOTO_BYTES * 1.4) { // base64 overhead
+      return badRequest('Ukuran foto terlalu besar. Maksimal 400KB.');
     }
     if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
         isNaN(latitude) || isNaN(longitude) ||
@@ -116,6 +114,20 @@ export async function POST(req: NextRequest) {
         isLate = lateMinutes > 0;
       }
 
+      let checkInPhotoKey: string;
+      try {
+        checkInPhotoKey = await saveAttendancePhoto(photo, {
+          userId: authUser.userId,
+          date: today,
+          kind: 'in',
+        });
+      } catch (err) {
+        if ((err as Error).message === 'photo-too-large') {
+          return badRequest('Ukuran foto terlalu besar. Maksimal 400KB.');
+        }
+        return badRequest('Format foto tidak valid.');
+      }
+
       let attendance;
       try {
         attendance = await prisma.attendance.create({
@@ -123,7 +135,7 @@ export async function POST(req: NextRequest) {
             userId: authUser.userId,
             date: today,
             checkIn: now,
-            checkInPhoto: photo,
+            checkInPhoto: checkInPhotoKey,
             checkInLat: latitude,
             checkInLng: longitude,
             checkInAddress: address?.trim() || null,
@@ -134,6 +146,7 @@ export async function POST(req: NextRequest) {
           },
         });
       } catch (e: unknown) {
+        await deleteAttendancePhoto(checkInPhotoKey);
         // P2002 = unique constraint — duplicate check-in race condition
         if ((e as { code?: string }).code === 'P2002') {
           return badRequest('Anda sudah melakukan absen masuk hari ini.');
@@ -179,17 +192,37 @@ export async function POST(req: NextRequest) {
       if (!existing) return badRequest('Anda belum melakukan absen masuk hari ini.');
       if (existing.checkOut) return badRequest('Anda sudah melakukan absen pulang hari ini.');
 
-      const attendance = await prisma.attendance.update({
-        where: { id: existing.id },
-        data: {
-          checkOut: now,
-          checkOutPhoto: photo,
-          checkOutLat: latitude,
-          checkOutLng: longitude,
-          checkOutAddress: address?.trim() || null,
-          isAutoCheckout: false,
-        },
-      });
+      let checkOutPhotoKey: string;
+      try {
+        checkOutPhotoKey = await saveAttendancePhoto(photo, {
+          userId: authUser.userId,
+          date: today,
+          kind: 'out',
+        });
+      } catch (err) {
+        if ((err as Error).message === 'photo-too-large') {
+          return badRequest('Ukuran foto terlalu besar. Maksimal 400KB.');
+        }
+        return badRequest('Format foto tidak valid.');
+      }
+
+      let attendance;
+      try {
+        attendance = await prisma.attendance.update({
+          where: { id: existing.id },
+          data: {
+            checkOut: now,
+            checkOutPhoto: checkOutPhotoKey,
+            checkOutLat: latitude,
+            checkOutLng: longitude,
+            checkOutAddress: address?.trim() || null,
+            isAutoCheckout: false,
+          },
+        });
+      } catch (err) {
+        await deleteAttendancePhoto(checkOutPhotoKey);
+        throw err;
+      }
 
       return ok(attendance, 'Absen pulang berhasil.');
     }

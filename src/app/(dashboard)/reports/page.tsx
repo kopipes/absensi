@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Download, Search, BarChart3, Filter, MapPin, X, ExternalLink, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
-  cn, formatDate, formatTime, getStatusBadgeColor, getStatusLabel, formatMinutes,
+  cn, formatDate, formatTime, getStatusBadgeColor, getStatusLabel, formatMinutes, getPhotoUrl,
   calculateWorkedMinutes, calculateShortageMinutes, STANDARD_WORK_MINUTES,
 } from '@/lib/utils';
 import type { Attendance } from '@/types';
@@ -429,9 +429,9 @@ export default function ReportsPage() {
                       <Camera size={14} className="text-sky-500" /> Foto Masuk
                     </h3>
                     <img
-                      src={selected.checkInPhoto}
+                      src={getPhotoUrl(selected.checkInPhoto)}
                       alt="Foto selfie masuk"
-                      className="w-full rounded-xl object-cover aspect-[3/4]"
+                      className="w-full rounded-xl object-cover"
                     />
                   </div>
                 )}
@@ -441,9 +441,9 @@ export default function ReportsPage() {
                       <Camera size={14} className="text-green-500" /> Foto Pulang
                     </h3>
                     <img
-                      src={selected.checkOutPhoto}
+                      src={getPhotoUrl(selected.checkOutPhoto)}
                       alt="Foto selfie pulang"
-                      className="w-full rounded-xl object-cover aspect-[3/4]"
+                      className="w-full rounded-xl object-cover"
                     />
                   </div>
                 )}
