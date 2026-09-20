@@ -169,8 +169,8 @@ npm run db:studio    # Prisma Studio (GUI database)
 - Radius default 100 meter, configurable per kantor
 
 ### Notifikasi
-- Otomatis dikirim ke atasan langsung (`managerId`) saat: terlambat, luar radius, lembur checkout otomatis, lembur manual, lembur disetujui/ditolak
-- Fallback ke Admin jika karyawan tidak punya atasan
+- Otomatis dikirim ke **seluruh atasan di rantai `managerId`** (mis. karyawan → SPV → Manager; karyawan → Manager bila tanpa SPV) saat: absen di luar radius, koreksi absen diajukan, serta lupa absen pulang (checkout reminder & auto cutoff).
+- Tidak ada fallback otomatis ke Admin: jika `managerId` kosong, tidak ada notifikasi ke atasan. Admin dapat melihat **semua** notifikasi di halaman Notifikasi.
 
 ---
 

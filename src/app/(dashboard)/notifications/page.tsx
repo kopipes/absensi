@@ -18,23 +18,31 @@ const typeConfig: Record<string, { icon: React.ElementType; color: string; bg: s
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [me, setMe] = useState<{ id: string; role: string } | null>(null);
 
   async function load() {
-    const res = await fetch('/api/notifications');
-    const data = await res.json();
+    const [meRes, nRes] = await Promise.all([
+      fetch('/api/auth/me'),
+      fetch('/api/notifications'),
+    ]);
+    const [meData, data] = await Promise.all([meRes.json(), nRes.json()]);
+    if (meData.success) setMe(meData.data);
     if (data.success) setNotifications(data.data);
     setLoading(false);
   }
 
   async function markAllRead() {
     await fetch('/api/notifications', { method: 'PATCH' });
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setNotifications((prev) => prev.map((n) =>
+      n.recipientId === me?.id ? { ...n, isRead: true } : n
+    ));
     toast.success('Semua notifikasi ditandai sudah dibaca.');
   }
 
   useEffect(() => { load(); }, []);
 
-  const unread = notifications.filter((n) => !n.isRead).length;
+  const isAdmin = me?.role === 'ADMIN';
+  const unread = notifications.filter((n) => !n.isRead && n.recipientId === me?.id).length;
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -90,7 +98,12 @@ export default function NotificationsPage() {
                       )}
                     </div>
                     <p className="text-sm text-slate-600 mt-0.5">{n.message}</p>
-                    <p className="text-xs text-slate-400 mt-1.5">{formatDateTime(n.createdAt)}</p>
+                    <p className="text-xs text-slate-400 mt-1.5">
+                      {formatDateTime(n.createdAt)}
+                      {isAdmin && n.recipient && (
+                        <span className="ml-2 text-slate-400">· Untuk: {n.recipient.name}</span>
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>

@@ -15,11 +15,15 @@ export default function TopBar({ user }: { user: JWTPayload }) {
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
-          setUnread(d.data.filter((n: { isRead: boolean }) => !n.isRead).length);
+          setUnread(
+            d.data.filter(
+              (n: { isRead: boolean; recipientId: string }) => !n.isRead && n.recipientId === user.userId
+            ).length
+          );
         }
       })
       .catch(() => {});
-  }, []);
+  }, [user.userId]);
 
   return (
     <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-100 px-4 md:px-6 py-3">

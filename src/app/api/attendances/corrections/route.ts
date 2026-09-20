@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
-import { userScopeFilter } from '@/lib/rbac';
+import { userScopeFilter, audienceUserIds } from '@/lib/rbac';
 
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
@@ -49,17 +49,18 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Notify manager
+    // Notify the whole manager chain (e.g. USER's SPV and MANAGER)
     const user = await prisma.user.findUnique({ where: { id: authUser.userId } });
-    if (user?.managerId) {
-      await prisma.notification.create({
-        data: {
+    const recipients = await audienceUserIds(authUser.userId);
+    if (user && recipients.length > 0) {
+      await prisma.notification.createMany({
+        data: recipients.map((recipientId) => ({
           type: 'CORRECTION_REQUEST',
           title: 'Permintaan Koreksi Absen',
           message: `${user.name} meminta koreksi absen untuk tanggal ${attendance.date}.`,
-          recipientId: user.managerId,
+          recipientId,
           senderId: authUser.userId,
-        },
+        })),
       });
     }
 

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
-import { userScopeFilter } from '@/lib/rbac';
+import { userScopeFilter, audienceUserIds } from '@/lib/rbac';
 import { calculateDistance, getTodayString } from '@/lib/utils';
 import { saveAttendancePhoto, deleteAttendancePhoto, MAX_PHOTO_BYTES } from '@/lib/photos';
 
@@ -149,21 +149,20 @@ export async function POST(req: NextRequest) {
         throw e;
       }
 
-      // Notify manager
-      if (user.managerId) {
-        const notifications = [];
-        if (isOutOfRadius) {
-          notifications.push(prisma.notification.create({
-            data: {
+      // Notify the whole manager chain (e.g. USER's SPV and MANAGER)
+      if (isOutOfRadius) {
+        const recipients = await audienceUserIds(authUser.userId);
+        if (recipients.length > 0) {
+          await prisma.notification.createMany({
+            data: recipients.map((recipientId) => ({
               type: 'OUT_OF_RADIUS',
               title: 'Absen di Luar Radius',
               message: `${user.name} melakukan absen masuk di luar radius kantor.`,
-              recipientId: user.managerId,
+              recipientId,
               senderId: authUser.userId,
-            },
-          }));
+            })),
+          });
         }
-        if (notifications.length > 0) await Promise.all(notifications);
       }
 
       return ok(attendance, 'Absen masuk berhasil.');

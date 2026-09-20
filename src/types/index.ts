@@ -108,6 +108,7 @@ export interface Notification {
   metadata?: string | null;
   createdAt: string;
   sender?: UserProfile | null;
+  recipient?: { id: string; name: string; nik: string; role: Role } | null;
 }
 
 export interface DashboardStats {

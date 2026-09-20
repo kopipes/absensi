@@ -139,14 +139,20 @@ async function main() {
     userIds[u.nik] = user.id;
   }
 
-  // Manager relationships: first 12 report to SAMPLE014, last two report to SAMPLE015
+  // Manager relationships: all staff report to SPV (SAMPLE015), SPV reports to
+  // MANAGER (SAMPLE014), MANAGER is the top of the chain (no manager), so a
+  // staff notification reaches both the SPV and the Manager.
   await prisma.user.updateMany({
-    where: { nik: { in: USERS.slice(0, 12).map((u) => u.nik) } },
+    where: { nik: { in: USERS.slice(0, 13).map((u) => u.nik) } },
+    data: { managerId: userIds['SAMPLE015'] },
+  });
+  await prisma.user.update({
+    where: { nik: 'SAMPLE015' },
     data: { managerId: userIds['SAMPLE014'] },
   });
   await prisma.user.update({
     where: { nik: 'SAMPLE014' },
-    data: { managerId: userIds['SAMPLE015'] },
+    data: { managerId: null },
   });
 
   // Attendance: 5 days, varied cases
@@ -320,18 +326,23 @@ async function main() {
     });
   }
 
-  // Notifications sample for the manager
+  // Notifications sample: mirror chain delivery (staff action → SPV + MANAGER)
+  const spvId = userIds['SAMPLE015'];
   const managerId = userIds['SAMPLE014'];
-  const notifCount = await prisma.notification.count({ where: { recipientId: managerId } });
-  if (notifCount === 0) {
-    await prisma.notification.createMany({
-      data: [
-        { type: 'OUT_OF_RADIUS', title: 'Absen di Luar Radius', message: 'Rizky Ramadhan absen di luar radius kantor (contoh data).', recipientId: managerId, senderId: userIds['SAMPLE005'] },
-        { type: 'MISSING_CHECKOUT', title: 'Auto Cutoff Karyawan', message: 'Siti Aminah lupa absen pulang, sistem mencatat 19:00 WIB (contoh data).', recipientId: managerId, senderId: userIds['SAMPLE002'] },
-        { type: 'CORRECTION_REQUEST', title: 'Permintaan Koreksi Absen', message: 'Siti Aminah mengajukan koreksi jam masuk (contoh data).', recipientId: managerId, senderId: userIds['SAMPLE002'] },
-      ],
-    });
-  }
+  const sampleSenders = [userIds['SAMPLE005'], userIds['SAMPLE002']];
+  await prisma.notification.deleteMany({
+    where: { senderId: { in: sampleSenders }, message: { contains: '(contoh data)' } },
+  });
+  await prisma.notification.createMany({
+    data: [
+      { type: 'OUT_OF_RADIUS', title: 'Absen di Luar Radius', message: 'Rizky Ramadhan absen di luar radius kantor (contoh data).', recipientId: spvId, senderId: userIds['SAMPLE005'] },
+      { type: 'OUT_OF_RADIUS', title: 'Absen di Luar Radius', message: 'Rizky Ramadhan absen di luar radius kantor (contoh data).', recipientId: managerId, senderId: userIds['SAMPLE005'] },
+      { type: 'MISSING_CHECKOUT', title: 'Auto Cutoff Karyawan', message: 'Siti Aminah lupa absen pulang, sistem mencatat 19:00 WIB (contoh data).', recipientId: spvId, senderId: userIds['SAMPLE002'] },
+      { type: 'MISSING_CHECKOUT', title: 'Auto Cutoff Karyawan', message: 'Siti Aminah lupa absen pulang, sistem mencatat 19:00 WIB (contoh data).', recipientId: managerId, senderId: userIds['SAMPLE002'] },
+      { type: 'CORRECTION_REQUEST', title: 'Permintaan Koreksi Absen', message: 'Siti Aminah mengajukan koreksi absen (contoh data).', recipientId: spvId, senderId: userIds['SAMPLE002'] },
+      { type: 'CORRECTION_REQUEST', title: 'Permintaan Koreksi Absen', message: 'Siti Aminah mengajukan koreksi absen (contoh data).', recipientId: managerId, senderId: userIds['SAMPLE002'] },
+    ],
+  });
 
   const total = await prisma.attendance.count();
   console.log(`Sample users: ${USERS.length} (roles: 13 USER, 1 MANAGER, 1 SPV)`);

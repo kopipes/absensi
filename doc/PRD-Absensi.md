@@ -41,7 +41,7 @@
 | No. Telp | String | Nomor HP |
 | Jabatan | String | Jabatan/posisi |
 | Departemen | String | Untuk filter laporan per departemen |
-| Atasan (managerId) | Reference ke User | Menentukan atasan yang menerima notifikasi & (bagi SPV) siapa saja yang masuk cakupan data/koreksinya. Manager melihat seluruh karyawan. |
+| Atasan (managerId) | Reference ke User | Menentukan atasan yang menerima notifikasi (notifikasi naik ke seluruh rantai atasan) & (bagi SPV) siapa saja yang masuk cakupan data/koreksinya. Manager melihat seluruh karyawan. |
 | Role | String | ADMIN / MANAGER / SPV / USER |
 | Lokasi Kantor (officeId) | Reference ke Office | Untuk cek radius geofence |
 | Jadwal Kerja (workScheduleId) | Reference ke WorkSchedule | Untuk hitung telat & lembur |
@@ -150,10 +150,11 @@
 - Export ke Excel (.xlsx) sesuai filter aktif.
 
 ### 5.12 Notifikasi In-App
-- Notifikasi otomatis ke atasan: karyawan terlambat, di luar radius, lembur checkout otomatis, lembur manual diajukan.
-- Notifikasi ke karyawan: lembur disetujui/ditolak (dengan label jenis lembur), koreksi disetujui/ditolak.
-- Fallback ke Admin jika karyawan tidak punya atasan.
-- Cron job: checkout reminder (30 menit sebelum jam pulang), auto-checkout fallback (06:00 WIB untuk yang lupa checkout).
+- Notifikasi dikirim ke **seluruh atasan pada rantai `managerId`** (bukan hanya atasan langsung): karyawan → SPV → Manager. Jadi aksi seorang karyawan (luar radius, ajukan koreksi) tampil di SPV **dan** Manager; aksi seorang SPV tampil di Manager.
+- Notifikasi ke karyawan: koreksi disetujui/ditolak, pengingat/penanda lupa absen pulang.
+- Tidak ada fallback otomatis ke Admin bila `managerId` kosong.
+- **Admin dapat melihat semua notifikasi** (lintas penerima) di halaman Notifikasi; Manager melihat notifikasi yang ditujukan kepadanya, yang secara alami mencakup aksi karyawan maupun SPV di bawahnya.
+- Cron job: checkout reminder (30 menit setelah jam pulang), auto-checkout cutoff (jam diatur admin, default 19:00 WIB).
 
 ## 6. Business Rules — Ringkasan
 
@@ -333,7 +334,7 @@ Model utama di `prisma/schema.prisma`:
 | No. Telp | String | Nomor HP (juga dipakai untuk login/OTP jika diperlukan) |
 | Jabatan | String | Jabatan/posisi |
 | Departemen | String | Untuk filter laporan per departemen |
-| Atasan (Reports To) | Reference ke User | Menentukan atasan yang menerima notifikasi & (bagi SPV) siapa saja yang masuk cakupan data/koreksinya. Manager melihat seluruh karyawan. |
+| Atasan (Reports To) | Reference ke User | Menentukan atasan yang menerima notifikasi (notifikasi naik ke seluruh rantai atasan) & (bagi SPV) siapa saja yang masuk cakupan data/koreksinya. Manager melihat seluruh karyawan. |
 | Role | Enum | admin / manager / spv / user |
 | Lokasi Kantor Terdaftar | Reference | Untuk cek radius geofence (lihat poin 6.4) |
 | Status | Enum | Aktif / Nonaktif |

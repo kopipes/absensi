@@ -7,12 +7,14 @@ export async function GET(req: NextRequest) {
   if (!authUser) return unauthorized();
 
   try {
+    const isAdmin = authUser.role === 'ADMIN';
     const notifications = await prisma.notification.findMany({
-      where: { recipientId: authUser.userId },
+      where: isAdmin ? {} : { recipientId: authUser.userId },
       orderBy: { createdAt: 'desc' },
       take: 50,
       include: {
         sender: { select: { id: true, name: true, avatar: true } },
+        recipient: { select: { id: true, name: true, nik: true, role: true } },
       },
     });
     return ok(notifications);

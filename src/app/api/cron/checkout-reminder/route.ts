@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+import { audienceUserIds } from '@/lib/rbac';
 
 const TZ = 'Asia/Jakarta';
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
       if (!user.workSchedule) continue;
       // Days-only schedules have no checkout time to remind against
       if (!user.workSchedule.checkOutTime) continue;
+      const scheduleCheckOutTime = user.workSchedule.checkOutTime;
 
       // Check if today is a work day
       const workDays = user.workSchedule.workDays.split(',');
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
       if (!attendance || !attendance.checkIn || attendance.checkOut) continue;
 
       // Calculate when reminder should fire: checkout time + 30 minutes
-      const [h, m] = user.workSchedule.checkOutTime.split(':').map(Number);
+      const [h, m] = scheduleCheckOutTime.split(':').map(Number);
       const checkoutWIB = toZonedTime(nowUTC, TZ);
       checkoutWIB.setHours(h, m + 30, 0, 0);
 
@@ -70,16 +72,17 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Notify manager too
-      if (user.managerId) {
-        await prisma.notification.create({
-          data: {
+      // Notify the whole manager chain too
+      const recipients = await audienceUserIds(user.id);
+      if (recipients.length > 0) {
+        await prisma.notification.createMany({
+          data: recipients.map((recipientId) => ({
             type: 'MISSING_CHECKOUT',
             title: 'Karyawan Belum Absen Pulang',
-            message: `${user.name} belum melakukan absen pulang hingga 30 menit setelah jam kerja (${user.workSchedule.checkOutTime}).`,
-            recipientId: user.managerId,
+            message: `${user.name} belum melakukan absen pulang hingga 30 menit setelah jam kerja (${scheduleCheckOutTime}).`,
+            recipientId,
             senderId: user.id,
-          },
+          })),
         });
       }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { formatInTimeZone } from 'date-fns-tz';
 import { AUTO_CHECKOUT_CUTOFF_TIME } from '@/lib/utils';
+import { audienceUserIds } from '@/lib/rbac';
 
 const TZ = 'Asia/Jakarta';
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -62,17 +63,20 @@ async function processAttendance(
   ];
 
   if (user.managerId) {
-    operations.push(
-      prisma.notification.create({
-        data: {
-          type: 'MISSING_CHECKOUT',
-          title: 'Auto Cutoff Karyawan',
-          message: `${user.name} tidak absen pulang pada ${dateStr}. Sistem otomatis mencatat jam pulang pukul ${cutoffTime} WIB. Silakan review jika diperlukan.`,
-          recipientId: user.managerId,
-          senderId: user.id,
-        },
-      })
-    );
+    const recipients = await audienceUserIds(user.id);
+    for (const recipientId of recipients) {
+      operations.push(
+        prisma.notification.create({
+          data: {
+            type: 'MISSING_CHECKOUT',
+            title: 'Auto Cutoff Karyawan',
+            message: `${user.name} tidak absen pulang pada ${dateStr}. Sistem otomatis mencatat jam pulang pukul ${cutoffTime} WIB. Silakan review jika diperlukan.`,
+            recipientId,
+            senderId: user.id,
+          },
+        })
+      );
+    }
   }
 
   await prisma.$transaction(operations);

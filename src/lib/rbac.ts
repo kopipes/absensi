@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 export type DataScope = 'all' | 'team' | 'self';
 
@@ -38,4 +39,42 @@ export function canViewUser(
   if (getDataScope(role) === 'all') return true;
   if (target.id === viewerId) return true;
   return target.managerId === viewerId;
+}
+
+const MAX_MANAGER_CHAIN = 10;
+
+/**
+ * Branch managers above `userId`, nearest first, following the `managerId`
+ * chain (USER → SPV → MANAGER). Cycles and gaps are handled safely.
+ */
+export async function getManagerChain(userId: string): Promise<string[]> {
+  const chain: string[] = [];
+  const seen = new Set<string>([userId]);
+  let current: string | null = null;
+
+  const start = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { managerId: true },
+  });
+  current = start?.managerId ?? null;
+
+  while (current && !seen.has(current) && chain.length < MAX_MANAGER_CHAIN) {
+    chain.push(current);
+    seen.add(current);
+    const next: { managerId: string | null } | null = await prisma.user.findUnique({
+      where: { id: current },
+      select: { managerId: true },
+    });
+    current = next?.managerId ?? null;
+  }
+
+  return chain;
+}
+
+/**
+ * Users who should be notified about an action by `actorId`: every manager up
+ * the chain, so a check-out by a USER reaches both the SPV and the MANAGER.
+ */
+export async function audienceUserIds(actorId: string): Promise<string[]> {
+  return getManagerChain(actorId);
 }
