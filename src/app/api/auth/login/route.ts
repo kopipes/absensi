@@ -3,6 +3,17 @@ import { prisma } from '@/lib/prisma';
 import { signToken } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCK_MINUTES = 15;
+const LOCK_MS = LOCK_MINUTES * 60 * 1000;
+
+function invalidCredentials() {
+  return NextResponse.json(
+    { success: false, error: 'NIK/email/no. HP atau password salah.' },
+    { status: 401 }
+  );
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -47,18 +58,49 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user) {
+      return invalidCredentials();
+    }
+
+    // Account lockout after repeated failures
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
       return NextResponse.json(
-        { success: false, error: 'NIK/email/no. HP atau password salah.' },
-        { status: 401 }
+        {
+          success: false,
+          error: `Akun terkunci sementara karena percobaan login gagal berulang. Coba lagi setelah ${LOCK_MINUTES} menit.`,
+        },
+        { status: 423 }
       );
     }
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-      return NextResponse.json(
-        { success: false, error: 'NIK/email/no. HP atau password salah.' },
-        { status: 401 }
-      );
+      const attempts = user.failedLoginAttempts + 1;
+      const shouldLock = attempts >= MAX_FAILED_ATTEMPTS;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: shouldLock ? 0 : attempts,
+          lockedUntil: shouldLock ? new Date(Date.now() + LOCK_MS) : null,
+        },
+      });
+      if (shouldLock) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Terlalu banyak percobaan gagal. Akun terkunci ${LOCK_MINUTES} menit.`,
+          },
+          { status: 423 }
+        );
+      }
+      return invalidCredentials();
+    }
+
+    // Success — clear any failure counters
+    if (user.failedLoginAttempts !== 0 || user.lockedUntil) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: 0, lockedUntil: null },
+      });
     }
 
     const token = await signToken({
