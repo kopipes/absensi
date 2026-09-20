@@ -70,6 +70,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/offices') ||
     pathname.startsWith('/api/work-schedules') ||
     pathname.startsWith('/api/holidays') ||
+    pathname.startsWith('/api/admin') ||
     pathname === '/api/users' ||
     pathname === '/api/users/' ||
     pathname.startsWith('/api/users/import');

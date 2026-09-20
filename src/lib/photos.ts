@@ -67,3 +67,53 @@ export async function deleteAttendancePhoto(key: string): Promise<void> {
   if (!filePath) return;
   await fs.unlink(filePath).catch(() => {});
 }
+
+/**
+ * Delete every stored photo belonging to a user (check-in and check-out).
+ * Keys look like `<yyyy>/<mm>/<kind>_<userId>_<ts>_<rand>.jpg`, so a filename
+ * prefix match is enough to find them across year/month folders.
+ */
+export async function deleteUserPhotos(userId: string): Promise<number> {
+  const root = getUploadRoot();
+  const segment = sanitizeSegment(userId);
+  let removed = 0;
+
+  let yearDirs: string[];
+  try {
+    yearDirs = await fs.readdir(root);
+  } catch {
+    return 0;
+  }
+
+  for (const year of yearDirs) {
+    if (!/^\d{4}$/.test(year)) continue;
+    const yearPath = path.join(root, year);
+    let monthDirs: string[];
+    try {
+      monthDirs = await fs.readdir(yearPath);
+    } catch {
+      continue;
+    }
+    for (const month of monthDirs) {
+      if (!/^\d{2}$/.test(month)) continue;
+      const monthPath = path.join(yearPath, month);
+      let files: string[];
+      try {
+        files = await fs.readdir(monthPath);
+      } catch {
+        continue;
+      }
+      for (const file of files) {
+        if (!file.endsWith('.jpg') || !file.includes(`_${segment}_`)) continue;
+        try {
+          await fs.unlink(path.join(monthPath, file));
+          removed++;
+        } catch {
+          /* ignore individual failures */
+        }
+      }
+    }
+  }
+
+  return removed;
+}

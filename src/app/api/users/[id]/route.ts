@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
 import { canViewUser } from '@/lib/rbac';
+import { deleteUserPhotos } from '@/lib/photos';
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const authUser = await getAuthUser(req);
@@ -30,6 +31,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       }),
       prisma.user.delete({ where: { id: params.id } }),
     ]);
+
+    // Clean up stored photos so disk doesn't accumulate orphan files
+    await deleteUserPhotos(params.id).catch(() => {});
 
     return ok(null, 'Karyawan berhasil dihapus.');
   } catch (error) {
