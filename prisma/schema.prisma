@@ -103,6 +103,12 @@ model Attendance {
   isOutOfRadius   Boolean  @default(false)
   checkOutOutOfRadius Boolean @default(false) // check-out happened outside office radius
   isAutoCheckout  Boolean  @default(false) // true bila jam pulang diisi otomatis oleh sistem (cutoff)
+  checkInAccuracy     Float? // GPS accuracy reported by the device (meters)
+  checkOutAccuracy    Float?
+  checkInCapturedAt   DateTime? // client-reported capture time, sanity-checked server-side
+  checkOutCapturedAt  DateTime?
+  checkInHash         String? // sha256 of the selfie bytes (reuse detection)
+  checkOutHash        String?
   status          String   @default("PRESENT")
   notes           String?
   createdAt       DateTime @default(now())
@@ -113,6 +119,8 @@ model Attendance {
   @@unique([userId, date])
   @@index([date])
   @@index([date, status])
+  @@index([checkInHash])
+  @@index([checkOutHash])
 }
 
 model AttendanceCorrection {
@@ -177,4 +185,20 @@ model Notification {
 
   @@index([recipientId, isRead])
   @@index([createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorName  String?
+  action     String
+  targetType String?
+  targetId   String?
+  details    String?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([action])
+  @@index([createdAt])
+  @@index([actorId])
 }

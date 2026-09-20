@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 
 // Max decoded photo size accepted from the client (server-side enforcement)
 export const MAX_PHOTO_BYTES = 400 * 1024; // 400 KB
@@ -8,6 +8,20 @@ export const MAX_PHOTO_BYTES = 400 * 1024; // 400 KB
 const PHOTO_SUBDIR = 'absensi';
 const KEY_PATTERN = /^\d{4}\/\d{2}\/[A-Za-z0-9_-]+\.jpg$/;
 const DATA_URL_PATTERN = /^data:image\/(jpeg|jpg|png);base64,([A-Za-z0-9+/=\s]+)$/i;
+
+/** True when the buffer starts with valid JPEG or PNG magic bytes. */
+export function isSupportedImageBuffer(buffer: Buffer): boolean {
+  if (buffer.length < 12) return false;
+  const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const isPng =
+    buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+  return isJpeg || isPng;
+}
+
+/** SHA-256 of the decoded image bytes — used to detect reused selfie files. */
+export function hashPhotoBuffer(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex');
+}
 
 export function getUploadRoot(): string {
   const base = process.env.UPLOAD_DIR
@@ -41,12 +55,25 @@ export async function saveAttendancePhoto(
   dataUrl: string,
   opts: { userId: string; date: string; kind: 'in' | 'out' }
 ): Promise<string> {
+  const saved = await saveAttendancePhotoWithMeta(dataUrl, opts);
+  return saved.key;
+}
+
+/**
+ * Same as saveAttendancePhoto but also returns integrity metadata (hash) so
+ * callers can flag reused/unverified selfies.
+ */
+export async function saveAttendancePhotoWithMeta(
+  dataUrl: string,
+  opts: { userId: string; date: string; kind: 'in' | 'out' }
+): Promise<{ key: string; hash: string }> {
   const match = DATA_URL_PATTERN.exec(dataUrl);
   if (!match) throw new Error('invalid-photo-format');
 
   const buffer = Buffer.from(match[2], 'base64');
   if (buffer.length === 0) throw new Error('empty-photo');
   if (buffer.length > MAX_PHOTO_BYTES) throw new Error('photo-too-large');
+  if (!isSupportedImageBuffer(buffer)) throw new Error('invalid-photo-format');
 
   // Folder by year/month (based on the attendance date string YYYY-MM-DD)
   const year = opts.date.slice(0, 4);
@@ -58,7 +85,7 @@ export async function saveAttendancePhoto(
   await fs.mkdir(path.join(root, year, month), { recursive: true });
   await fs.writeFile(path.join(root, key), buffer);
 
-  return key;
+  return { key, hash: hashPhotoBuffer(buffer) };
 }
 
 /** Remove a stored photo (used to roll back a failed DB write). */
