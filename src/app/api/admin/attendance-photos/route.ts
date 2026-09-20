@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { promises as fs } from 'fs';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { recordAudit, getClientIp } from '@/lib/audit';
 import { isValidPhotoKey, resolvePhotoPath } from '@/lib/photos';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -66,6 +67,11 @@ export async function DELETE(req: NextRequest) {
     await prisma.attendance.update({
       where: { id: attendance.id },
       data: isCheckIn ? { checkInPhoto: null } : { checkOutPhoto: null },
+    });
+
+    await recordAudit({
+      actor: authUser, action: 'PHOTO_DELETE', targetType: 'Attendance', targetId: attendance.id,
+      details: { key, kind: isCheckIn ? 'in' : 'out' }, ip: getClientIp(req),
     });
 
     return ok(null, 'Foto berhasil dihapus.');

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
 import { canViewUser } from '@/lib/rbac';
 import { deleteUserPhotos } from '@/lib/photos';
+import { recordAudit, getClientIp } from '@/lib/audit';
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const authUser = await getAuthUser(req);
@@ -34,6 +35,15 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
     // Clean up stored photos so disk doesn't accumulate orphan files
     await deleteUserPhotos(params.id).catch(() => {});
+
+    await recordAudit({
+      actor: authUser,
+      action: 'USER_DELETE',
+      targetType: 'User',
+      targetId: params.id,
+      details: { nik: user.nik, name: user.name },
+      ip: getClientIp(req),
+    });
 
     return ok(null, 'Karyawan berhasil dihapus.');
   } catch (error) {
@@ -88,9 +98,26 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (email !== undefined) updateData.email = email?.trim() || null;
     if (phone !== undefined) updateData.phone = phone?.trim() || null;
     if (address !== undefined) updateData.address = address?.trim() || null;
-    if (password?.trim()) {
+
+    let passwordChanged = false;
+    if (typeof password === 'string' && password.trim()) {
+      if (password.trim().length < 8) {
+        return badRequest('Password minimal 8 karakter.');
+      }
+      // Self-service password change must prove knowledge of the old password;
+      // admins resetting someone else's password may skip it.
+      if (authUser.role !== 'ADMIN') {
+        const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
+        const bcrypt = await import('bcryptjs');
+        const full = await prisma.user.findUnique({ where: { id: params.id }, select: { password: true } });
+        const validCurrent = full ? await bcrypt.compare(currentPassword, full.password) : false;
+        if (!validCurrent) {
+          return badRequest('Password saat ini salah.');
+        }
+      }
       const bcrypt = await import('bcryptjs');
-      updateData.password = await bcrypt.hash(password, 12);
+      updateData.password = await bcrypt.hash(password.trim(), 12);
+      passwordChanged = true;
     }
 
     if (authUser.role === 'ADMIN') {
@@ -108,6 +135,24 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     const updated = await prisma.user.update({ where: { id: params.id }, data: updateData });
+
+    if (passwordChanged) {
+      // A reset invalidates any active lockout
+      await prisma.user.update({
+        where: { id: params.id },
+        data: { failedLoginAttempts: 0, lockedUntil: null },
+      });
+    }
+
+    await recordAudit({
+      actor: authUser,
+      action: passwordChanged ? 'PASSWORD_CHANGE' : 'USER_UPDATE',
+      targetType: 'User',
+      targetId: params.id,
+      details: { byAdmin: authUser.role === 'ADMIN' && !isSelf, fields: Object.keys(updateData).filter((k) => k !== 'password') },
+      ip: getClientIp(req),
+    });
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _pw, ...safe } = updated;
     return ok(safe, 'Data berhasil diperbarui.');

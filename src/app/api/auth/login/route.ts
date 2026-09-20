@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { signToken } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
+import { recordAudit, getClientIp } from '@/lib/audit';
+import { rateLimit } from '@/lib/rate-limit';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -16,6 +18,16 @@ function invalidCredentials() {
 
 export async function POST(req: NextRequest) {
   try {
+    // Per-IP rate limit (password-spraying guard) in addition to per-account lockout
+    const ip = getClientIp(req) || 'unknown';
+    const rl = rateLimit(`login:${ip}`, 20, 5 * 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: `Terlalu banyak percobaan dari jaringan ini. Coba lagi dalam ${rl.retryAfterSeconds} detik.` },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } }
+      );
+    }
+
     const body = await req.json();
     const { login, password } = body;
 
@@ -63,6 +75,13 @@ export async function POST(req: NextRequest) {
 
     // Account lockout after repeated failures
     if (user.lockedUntil && user.lockedUntil > new Date()) {
+      await recordAudit({
+        actor: { userId: user.id, name: user.name, role: user.role },
+        action: 'LOGIN_BLOCKED',
+        targetType: 'User',
+        targetId: user.id,
+        ip: getClientIp(req),
+      });
       return NextResponse.json(
         {
           success: false,
@@ -82,6 +101,14 @@ export async function POST(req: NextRequest) {
           failedLoginAttempts: shouldLock ? 0 : attempts,
           lockedUntil: shouldLock ? new Date(Date.now() + LOCK_MS) : null,
         },
+      });
+      await recordAudit({
+        actor: { userId: user.id, name: user.name, role: user.role },
+        action: shouldLock ? 'ACCOUNT_LOCKED' : 'LOGIN_FAILED',
+        targetType: 'User',
+        targetId: user.id,
+        details: { attempts },
+        ip: getClientIp(req),
       });
       if (shouldLock) {
         return NextResponse.json(
@@ -122,6 +149,14 @@ export async function POST(req: NextRequest) {
         position: user.position,
         avatar: user.avatar,
       },
+    });
+
+    await recordAudit({
+      actor: { userId: user.id, name: user.name, role: user.role },
+      action: 'LOGIN_SUCCESS',
+      targetType: 'User',
+      targetId: user.id,
+      ip: getClientIp(req),
     });
 
     response.cookies.set('absensi_token', token, {

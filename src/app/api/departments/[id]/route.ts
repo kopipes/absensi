@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { recordAudit, getClientIp } from '@/lib/audit';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const authUser = await getAuthUser(req);
@@ -33,6 +34,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       where: { id: params.id },
       data: { name, description, isActive },
     });
+    await recordAudit({
+      actor: authUser, action: 'DEPARTMENT_UPDATE', targetType: 'Department', targetId: dept.id,
+      details: { name: dept.name, isActive: dept.isActive }, ip: getClientIp(req),
+    });
     return ok(dept, 'Departemen berhasil diperbarui.');
   } catch (error) {
     console.error('[UPDATE DEPARTMENT]', error);
@@ -56,6 +61,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     }
 
     await prisma.department.delete({ where: { id: params.id } });
+    await recordAudit({
+      actor: authUser, action: 'DEPARTMENT_DELETE', targetType: 'Department', targetId: params.id,
+      details: { name: dept.name }, ip: getClientIp(req),
+    });
     return ok(null, 'Departemen berhasil dihapus.');
   } catch (error) {
     console.error('[DELETE DEPARTMENT]', error);

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { recordAudit, getClientIp } from '@/lib/audit';
 import bcrypt from 'bcryptjs';
 
 export async function GET(req: NextRequest) {
@@ -93,6 +94,14 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _pw, ...safe } = newUser;
+    await recordAudit({
+      actor: authUser,
+      action: 'USER_CREATE',
+      targetType: 'User',
+      targetId: newUser.id,
+      details: { nik, role: newUser.role, department },
+      ip: getClientIp(req),
+    });
     return ok(safe, 'Karyawan berhasil ditambahkan.');
   } catch (error) {
     console.error('[CREATE USER]', error);

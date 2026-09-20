@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { recordAudit, getClientIp } from '@/lib/audit';
 
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
@@ -39,6 +40,10 @@ export async function POST(req: NextRequest) {
 
     const holiday = await prisma.holiday.create({
       data: { name: name.trim(), date, isNational: isNational !== false },
+    });
+    await recordAudit({
+      actor: authUser, action: 'HOLIDAY_CREATE', targetType: 'Holiday', targetId: holiday.id,
+      details: { name: holiday.name, date, isNational }, ip: getClientIp(req),
     });
     return ok(holiday, 'Hari libur berhasil ditambahkan.');
   } catch (error) {

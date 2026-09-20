@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { recordAudit, getClientIp } from '@/lib/audit';
 import { AUTO_CHECKOUT_CUTOFF_TIME } from '@/lib/utils';
 
 const AUTO_CUTOFF_ENABLED_KEY = 'auto_cutoff_enabled';
@@ -72,6 +73,11 @@ export async function PUT(req: NextRequest) {
       );
     }
     await prisma.$transaction(operations);
+
+    await recordAudit({
+      actor: authUser, action: 'SETTINGS_UPDATE', targetType: 'Setting',
+      details: { autoCutoffEnabled, autoCutoffTime }, ip: getClientIp(req),
+    });
 
     return ok(await readSettings(), 'Pengaturan disimpan.');
   } catch (error) {

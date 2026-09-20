@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { recordAudit, getClientIp } from '@/lib/audit';
 
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
@@ -32,6 +33,10 @@ export async function POST(req: NextRequest) {
 
     const dept = await prisma.department.create({
       data: { name, description: description || null },
+    });
+    await recordAudit({
+      actor: authUser, action: 'DEPARTMENT_CREATE', targetType: 'Department', targetId: dept.id,
+      details: { name: dept.name }, ip: getClientIp(req),
     });
     return ok(dept, 'Departemen berhasil ditambahkan.');
   } catch (error) {

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { recordAudit, getClientIp } from '@/lib/audit';
 import { canViewUser } from '@/lib/rbac';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -92,6 +93,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     } else {
       await prisma.$transaction([updateCorrection, createNotification]);
     }
+
+    await recordAudit({
+      actor: authUser,
+      action: status === 'APPROVED' ? 'CORRECTION_APPROVE' : 'CORRECTION_REJECT',
+      targetType: 'AttendanceCorrection',
+      targetId: params.id,
+      details: { attendanceId: correction.attendanceId, newCheckIn: correction.newCheckIn, newCheckOut: correction.newCheckOut },
+      ip: getClientIp(req),
+    });
 
     return ok(null, status === 'APPROVED' ? 'Koreksi disetujui.' : 'Koreksi ditolak.');
   } catch (error) {
