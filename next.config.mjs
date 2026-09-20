@@ -29,6 +29,23 @@ const nextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(self), geolocation=(self), microphone=()',
           },
+          {
+            // Report-only first so violations surface in the console without
+            // breaking the app; enforce later once clean. 'unsafe-inline'/
+            // 'unsafe-eval' are required by the Next.js runtime.
+            key: 'Content-Security-Policy-Report-Only',
+            value:
+              "default-src 'self'; " +
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+              "style-src 'self' 'unsafe-inline'; " +
+              "img-src 'self' data: blob:; " +
+              "connect-src 'self' https://nominatim.openstreetmap.org; " +
+              "font-src 'self' data:; " +
+              "media-src 'self' blob:; " +
+              "frame-ancestors 'none'; " +
+              "base-uri 'self'; " +
+              "form-action 'self'",
+          },
         ],
       },
     ];
