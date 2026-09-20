@@ -107,6 +107,11 @@ export async function GET(req: NextRequest) {
     if (status && !VALID_STATUSES.includes(status)) {
       return badRequest('Status tidak valid.');
     }
+    if (startDate && endDate) {
+      if (startDate > endDate) return badRequest('Tanggal mulai tidak boleh melebihi tanggal akhir.');
+      const rangeDays = (Date.parse(endDate) - Date.parse(startDate)) / 86_400_000;
+      if (rangeDays > 366) return badRequest('Rentang tanggal terlalu besar. Maksimal 366 hari.');
+    }
 
     // Merge user-level filters so multiple conditions don't overwrite each other
     const userWhere: Prisma.UserWhereInput = {};
@@ -155,7 +160,11 @@ export async function GET(req: NextRequest) {
       autoCutoff: aggregateRows.filter((a) => a.isAutoCheckout).length,
       outOfRadius: aggregateRows.filter((a) => a.isOutOfRadius).length,
     };
-    const summary = buildUserSummary(aggregateRows);
+    // Build the summary only for the recap view (and its export); the detail
+    // view doesn't need the per-employee grouping.
+    const summary = view === 'summary' || (format === 'xlsx' && view === 'summary')
+      ? buildUserSummary(aggregateRows)
+      : [];
 
     // Sanitize filename parts
     const safeStart = startDate.replace(/[^0-9-]/g, '') || 'all';
@@ -250,7 +259,7 @@ export async function GET(req: NextRequest) {
       include: {
         user: { select: { id: true, nik: true, name: true, department: true, position: true } },
       },
-      orderBy: [{ date: 'desc' }, { user: { name: 'asc' } }],
+      orderBy: [{ date: 'desc' }, { userId: 'asc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     });

@@ -20,6 +20,7 @@
 - **Re-review Lembur** — Admin dapat override keputusan lembur yang sudah diproses
 - **Notifikasi Real-time** — Manajer/SPV mendapat notifikasi saat karyawan terlambat, luar radius, atau lembur
 - **Koreksi Absen** — Alur permintaan dan persetujuan koreksi absen
+- **Foto Absensi** — Admin dapat menelusuri & menghapus foto absensi per tanggal
 - **Izin Pulang Awal** — Karyawan dapat mengajukan early leave dengan approval atasan
 - **Laporan & Export** — Filter laporan kehadiran dan export ke Excel (.xlsx)
 - **Multi-role** — Admin, Manager, SPV, dan Karyawan dengan akses berbeda
@@ -165,8 +166,15 @@ npm run db:studio    # Prisma Studio (GUI database)
 
 ### Radius & Lokasi
 - Validasi jarak Haversine antara koordinat karyawan dan kantor
-- Jika di luar radius: absen tetap masuk, diberi flag `isOutOfRadius = true`, notifikasi ke atasan
+- Berlaku untuk **absen masuk dan absen pulang**. Jika di luar radius: absen tetap masuk, ditandai `isOutOfRadius` (masuk) / `checkOutOutOfRadius` (pulang), notifikasi ke rantai atasan
+- Karyawan **tanpa jam kerja tetap** (jadwal tanpa jam, mis. "Hari Kerja Saja", atau tanpa jadwal sama sekali) tetap dicatat di luar radius saat pulang tetapi **tidak memicu notifikasi**
 - Radius default 100 meter, configurable per kantor
+
+### Keamanan Login
+- Akun terkunci **15 menit setelah 5 percobaan gagal**; counter direset saat berhasil login atau saat masa kunci berakhir.
+
+### Foto Absensi (Admin)
+- Menu **Admin → Foto Absensi**: riwayat foto per tanggal + hapus satuan. Menghapus user juga membersihkan file fotonya; admin juga bisa menghapus foto tertentu dari menu ini.
 
 ### Notifikasi
 - Otomatis dikirim ke **seluruh atasan di rantai `managerId`** (mis. karyawan → SPV → Manager; karyawan → Manager bila tanpa SPV) saat: absen di luar radius, koreksi absen diajukan, serta lupa absen pulang (checkout reminder & auto cutoff).

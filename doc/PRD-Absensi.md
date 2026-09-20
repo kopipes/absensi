@@ -156,6 +156,17 @@
 - **Admin dapat melihat semua notifikasi** (lintas penerima) di halaman Notifikasi; Manager melihat notifikasi yang ditujukan kepadanya, yang secara alami mencakup aksi karyawan maupun SPV di bawahnya.
 - Cron job: checkout reminder (30 menit setelah jam pulang), auto-checkout cutoff (jam diatur admin, default 19:00 WIB).
 
+### 5.13 Geofence Absen Pulang
+- Validasi radius berlaku untuk absen masuk **dan** absen pulang; hasil pulang disimpan di `checkOutOutOfRadius`.
+- Karyawan tanpa jam kerja tetap (jadwal tanpa jam, mis. "Hari Kerja Saja", atau tanpa jadwal) tetap dicatat di luar radius, tetapi **tidak** memicu notifikasi saat pulang.
+
+### 5.14 Keamanan Login
+- Setelah **5 percobaan gagal**, akun terkunci **15 menit** (`failedLoginAttempts`, `lockedUntil`); counter direset saat login berhasil atau setelah masa kunci berakhir.
+
+### 5.15 Foto Absensi (Admin)
+- Admin dapat melihat riwayat foto absensi per tanggal dan menghapus foto tertentu (`GET`/`DELETE /api/admin/attendance-photos`).
+- Menghapus karyawan ikut menghapus seluruh file fotonya sehingga tidak menumpuk di disk.
+
 ## 6. Business Rules — Ringkasan
 
 | Aturan | Nilai Default | Configurable? |
