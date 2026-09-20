@@ -172,6 +172,18 @@ npm run db:studio    # Prisma Studio (GUI database)
 
 ### Keamanan Login
 - Akun terkunci **15 menit setelah 5 percobaan gagal**; counter direset saat berhasil login atau saat masa kunci berakhir.
+- **Rate limit per-IP** 20 percobaan / 5 menit, plus `limit_req` di nginx untuk `/api/auth/login`.
+- Ganti password di halaman Profil wajib menyertakan **password saat ini** (admin mereset tanpa syarat ini); reset otomatis membuka kunci akun.
+- **Audit log** (Admin → Audit Log) mencatat login, perubahan karyawan/password, absen, koreksi, master data, pengaturan, dan hapus foto.
+
+### Integritas Bukti Absen
+- Selfie diverifikasi **magic bytes** (JPEG/PNG) di server, bukan hanya prefix data URL.
+- Foto di-hash (SHA-256); foto yang **identik dengan absen sebelumnya atau milik karyawan lain** otomatis ditandai di catatan dan dinotifikasi ke atasan untuk ditinjau.
+- **Akurasi GPS** dari perangkat ikut disimpan; akurasi rendah (>100 m) diberi catatan.
+- Retensi foto otomatis lewat cron `/api/cron/photo-retention` (default 180 hari), dan folder `uploads/` ikut di-backup saat deploy.
+
+### Test
+- `npm test` — test inti (aturan 8 jam, geofence, RBAC scope, magic bytes foto).
 
 ### Foto Absensi (Admin)
 - Menu **Admin → Foto Absensi**: riwayat foto per tanggal + hapus satuan. Menghapus user juga membersihkan file fotonya; admin juga bisa menghapus foto tertentu dari menu ini.

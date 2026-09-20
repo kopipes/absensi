@@ -162,6 +162,17 @@
 
 ### 5.14 Keamanan Login
 - Setelah **5 percobaan gagal**, akun terkunci **15 menit** (`failedLoginAttempts`, `lockedUntil`); counter direset saat login berhasil atau setelah masa kunci berakhir.
+- **Rate limit per-IP** (20/5 menit) di aplikasi + `limit_req` di nginx untuk `/api/auth/login`.
+- Ganti password sendiri wajib memverifikasi password lama (admin boleh reset tanpa itu); reset membuka kunci akun.
+
+### 5.16 Audit Log
+- Setiap aksi penting dicatat (`AuditLog`): login sukses/gagal/kunci, tambah/ubah/hapus karyawan, ubah password, absen masuk/pulang, koreksi diajukan/disetujui/ditolak, perubahan kantor/jadwal/departemen/hari libur/pengaturan, dan hapus foto.
+- Halaman **Admin → Audit Log** dengan filter aksi dan pencarian.
+
+### 5.17 Integritas Bukti Absen
+- Selfie diverifikasi magic bytes (JPEG/PNG); foto di-hash SHA-256 untuk mendeteksi pemakaian ulang (oleh user yang sama maupun lintas user) → ditandai di catatan & dinotifikasi ke atasan.
+- Akurasi GPS disimpan; akurasi rendah (>100 m) diberi catatan.
+- Retensi foto otomatis via cron `/api/cron/photo-retention` (default 180 hari); folder `uploads/` di-backup saat deploy.
 
 ### 5.15 Foto Absensi (Admin)
 - Admin dapat melihat riwayat foto absensi per tanggal dan menghapus foto tertentu (`GET`/`DELETE /api/admin/attendance-photos`).

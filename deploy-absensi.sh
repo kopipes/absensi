@@ -35,6 +35,17 @@ backup_db() {
   fi
 }
 
+# Attendance photos live outside the DB under $APP_DIR/uploads; mirror them into
+# the backup dir with a rolling "latest" copy so evidence survives a lost server.
+backup_uploads() {
+  local src="$APP_DIR/uploads"
+  [ -d "$src" ] || { echo "   No uploads directory — skipping photo backup."; return 0; }
+  mkdir -p "$BACKUP_DIR/uploads-latest"
+  rsync -a --delete "$src/" "$BACKUP_DIR/uploads-latest/" 2>/dev/null \
+    && echo "   Photo mirror: $BACKUP_DIR/uploads-latest/" \
+    || echo "   WARNING: uploads backup failed (rsync missing?)"
+}
+
 # Ensure git trusts this directory (avoids dubious ownership errors)
 git config --global --add safe.directory $APP_DIR 2>/dev/null || true
 
@@ -91,6 +102,10 @@ if [ -f "$DB_FILE" ]; then
   backup_db "$BACKUP_DIR/db-$TIMESTAMP.db"
   echo "   DB backup: $BACKUP_DIR/db-$TIMESTAMP.db"
 fi
+
+# 2b. Mirror attendance photos (evidence) outside the DB
+echo "2b. Backing up attendance photos..."
+backup_uploads
 
 # 3. Clone or pull from GitHub
 echo "3. Pulling latest from GitHub..."
