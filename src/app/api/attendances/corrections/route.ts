@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
-import { userScopeFilter, audienceUserIds } from '@/lib/rbac';
+import { userScopeFilter, audienceUserIds, canViewUser } from '@/lib/rbac';
 
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
@@ -30,11 +30,27 @@ export async function POST(req: NextRequest) {
     const { attendanceId, newCheckIn, newCheckOut, reason } = body;
     if (!attendanceId || !reason) return badRequest('ID absen dan alasan wajib diisi.');
 
-    const attendance = await prisma.attendance.findUnique({ where: { id: attendanceId } });
+    const attendance = await prisma.attendance.findUnique({
+      where: { id: attendanceId },
+      include: { user: { select: { managerId: true } } },
+    });
     if (!attendance) return badRequest('Data absen tidak ditemukan.');
 
-    // Users can only request correction for their own attendance
-    if (authUser.role === 'USER' && attendance.userId !== authUser.userId) return forbidden();
+    // Only the attendance owner, their SPV/manager chain, or ADMIN may request
+    if (!canViewUser(authUser.role, authUser.userId, {
+      id: attendance.userId,
+      managerId: attendance.user.managerId,
+    })) {
+      return forbidden();
+    }
+
+    // Avoid piling up duplicate pending requests for the same attendance
+    const pending = await prisma.attendanceCorrection.findFirst({
+      where: { attendanceId, status: 'PENDING' },
+    });
+    if (pending) {
+      return badRequest('Sudah ada permintaan koreksi yang menunggu persetujuan untuk absen ini.');
+    }
 
     const correction = await prisma.attendanceCorrection.create({
       data: {

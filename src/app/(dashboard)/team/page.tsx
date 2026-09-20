@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Search, Filter, Download, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { cn, formatTime, getStatusBadgeColor, getStatusLabel, formatDate } from '@/lib/utils';
+import { cn, formatTime, getStatusBadgeColor, getStatusLabel, formatDate, getTodayString } from '@/lib/utils';
 import type { Attendance } from '@/types';
 
 export default function TeamPage() {
@@ -12,7 +12,7 @@ export default function TeamPage() {
   const [search, setSearch] = useState('');
   const [filterDept, setFilterDept] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayString());
   const [departments, setDepartments] = useState<string[]>([]);
 
   async function load() {

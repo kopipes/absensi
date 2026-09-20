@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
+import { canViewUser } from '@/lib/rbac';
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const authUser = await getAuthUser(req);
@@ -40,7 +41,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const authUser = await getAuthUser(req);
   if (!authUser) return unauthorized();
-  if (authUser.role === 'USER' && authUser.userId !== params.id) return forbidden();
 
   try {
     const user = await prisma.user.findUnique({
@@ -52,6 +52,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       },
     });
     if (!user) return badRequest('User tidak ditemukan.');
+
+    // ADMIN sees everyone, MANAGER everyone, SPV self + direct reports, USER self
+    if (!canViewUser(authUser.role, authUser.userId, { id: user.id, managerId: user.managerId })) {
+      return forbidden();
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _pw, ...safe } = user;
     return ok(safe);

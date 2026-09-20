@@ -61,13 +61,18 @@ export async function middleware(req: NextRequest) {
     return redirectTo('/dashboard');
   }
 
-  // Admin-only API paths — return 403 for non-admins
+  // Admin-only API paths — return 403 for non-admins.
+  // `/api/departments` is intentionally excluded: GET serves the report
+  // filter for managers, while POST/PUT/DELETE enforce ADMIN in the route.
+  // `/api/users/<id>` is left to the route so users can read/update their own
+  // profile; the collection and the Excel import stay admin-only.
   const isAdminApiPath =
-    pathname.startsWith('/api/departments') ||
     pathname.startsWith('/api/offices') ||
     pathname.startsWith('/api/work-schedules') ||
     pathname.startsWith('/api/holidays') ||
-    pathname.startsWith('/api/users');
+    pathname === '/api/users' ||
+    pathname === '/api/users/' ||
+    pathname.startsWith('/api/users/import');
   if (isAdminApiPath && user.role !== 'ADMIN') {
     return NextResponse.json(
       { success: false, error: 'Tidak memiliki akses.' },

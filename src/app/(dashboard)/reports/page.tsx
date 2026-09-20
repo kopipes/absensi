@@ -5,7 +5,7 @@ import { Download, Search, BarChart3, Filter, MapPin, X, ExternalLink, Camera } 
 import toast from 'react-hot-toast';
 import {
   cn, formatDate, formatTime, getStatusBadgeColor, getStatusLabel, formatMinutes, getPhotoUrl,
-  calculateWorkedMinutes, calculateShortageMinutes, STANDARD_WORK_MINUTES,
+  calculateWorkedMinutes, calculateShortageMinutes, STANDARD_WORK_MINUTES, getTodayString,
 } from '@/lib/utils';
 import type { Attendance } from '@/types';
 
@@ -28,7 +28,7 @@ interface UserSummaryRow {
 }
 
 export default function ReportsPage() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayString();
   const firstOfMonth = today.slice(0, 8) + '01';
 
   const [startDate, setStartDate] = useState(firstOfMonth);
@@ -97,6 +97,7 @@ export default function ReportsPage() {
     try {
       const params = new URLSearchParams({ startDate, endDate, format: 'xlsx', view });
       if (department) params.set('department', department);
+      if (search.trim()) params.set('search', search.trim());
       const res = await fetch(`/api/reports?${params}`);
       if (!res.ok) { toast.error('Gagal mengekspor.'); return; }
       const blob = await res.blob();

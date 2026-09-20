@@ -51,6 +51,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (!correction) return badRequest('Data koreksi tidak ditemukan.');
     if (!canViewUser(authUser.role, authUser.userId, correction.attendance.user)) return forbidden();
+    // A requester may not approve their own request (ADMIN override excepted)
+    if (authUser.role !== 'ADMIN' && correction.requestedById === authUser.userId) {
+      return forbidden();
+    }
     if (correction.status !== 'PENDING') {
       return badRequest('Koreksi ini sudah diproses sebelumnya.');
     }

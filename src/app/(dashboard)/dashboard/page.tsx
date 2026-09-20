@@ -6,7 +6,7 @@ import {
   Users, Clock, AlertCircle, CheckCircle2,
   Calendar, ArrowRight, MapPin, Timer
 } from 'lucide-react';
-import { cn, formatDate, formatTime, getStatusBadgeColor, getStatusLabel } from '@/lib/utils';
+import { cn, formatDate, formatTime, getStatusBadgeColor, getStatusLabel, getTodayString } from '@/lib/utils';
 import type { Attendance } from '@/types';
 
 interface DashboardStats {
@@ -37,7 +37,7 @@ export default function DashboardPage() {
     setLoading(true);
     setError('');
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayString();
       const [meRes, attRes] = await Promise.all([
         fetch('/api/auth/me'),
         fetch(`/api/attendances?date=${today}`),
