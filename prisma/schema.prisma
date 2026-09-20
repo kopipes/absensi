@@ -27,6 +27,8 @@ model User {
   password   String
   avatar     String?
   isActive   Boolean  @default(true)
+  failedLoginAttempts Int @default(0)
+  lockedUntil DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -99,6 +101,7 @@ model Attendance {
   checkInAddress  String?
   checkOutAddress String?
   isOutOfRadius   Boolean  @default(false)
+  checkOutOutOfRadius Boolean @default(false) // check-out happened outside office radius
   isAutoCheckout  Boolean  @default(false) // true bila jam pulang diisi otomatis oleh sistem (cutoff)
   status          String   @default("PRESENT")
   notes           String?

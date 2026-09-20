@@ -94,12 +94,16 @@ export async function POST(req: NextRequest) {
     if (!user) return badRequest('User tidak ditemukan.');
     if (!user.isActive) return badRequest('Akun Anda tidak aktif.');
 
-    // Location validation
+    // Location validation (applies to both check-in and check-out)
     let isOutOfRadius = false;
     if (user.office) {
       const distance = calculateDistance(latitude, longitude, user.office.latitude, user.office.longitude);
       isOutOfRadius = distance > user.office.radius;
     }
+    // A schedule with no times (days-only) or no schedule at all counts as
+    // having no fixed working hours: no out-of-radius *notification* on checkout.
+    const hasFixedHours = !!user.workSchedule?.checkInTime && !!user.workSchedule?.checkOutTime;
+    const checkOutOutOfRadius = isOutOfRadius;
 
     const now = new Date();
 
@@ -200,11 +204,29 @@ export async function POST(req: NextRequest) {
             checkOutLng: longitude,
             checkOutAddress: address?.trim() || null,
             isAutoCheckout: false,
+            checkOutOutOfRadius,
           },
         });
       } catch (err) {
         await deleteAttendancePhoto(checkOutPhotoKey);
         throw err;
+      }
+
+      // Check-out geofence alert, unless the employee has no fixed working
+      // hours (days-only schedule or no schedule at all) — those are free days.
+      if (checkOutOutOfRadius && hasFixedHours) {
+        const recipients = await audienceUserIds(authUser.userId);
+        if (recipients.length > 0) {
+          await prisma.notification.createMany({
+            data: recipients.map((recipientId) => ({
+              type: 'OUT_OF_RADIUS',
+              title: 'Absen Pulang di Luar Radius',
+              message: `${user.name} melakukan absen pulang di luar radius kantor.`,
+              recipientId,
+              senderId: authUser.userId,
+            })),
+          });
+        }
       }
 
       return ok(attendance, 'Absen pulang berhasil.');
