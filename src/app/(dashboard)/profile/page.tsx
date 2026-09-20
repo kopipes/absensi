@@ -13,7 +13,7 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', address: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', address: '', password: '', currentPassword: '' });
 
   const loadProfile = useCallback(async () => {
     try {
@@ -21,7 +21,7 @@ export default function ProfilePage() {
       const d = await res.json();
       if (d.success) {
         setProfile(d.data);
-        setForm({ name: d.data.name, email: d.data.email || '', phone: d.data.phone || '', address: d.data.address || '', password: '' });
+        setForm({ name: d.data.name, email: d.data.email || '', phone: d.data.phone || '', address: d.data.address || '', password: '', currentPassword: '' });
       }
     } catch {
       toast.error('Gagal memuat profil.');
@@ -35,6 +35,12 @@ export default function ProfilePage() {
   async function handleSave() {
     if (!profile) return;
     if (!form.name.trim()) { toast.error('Nama tidak boleh kosong.'); return; }
+    if (form.password.trim() && form.password.trim().length < 8) {
+      toast.error('Password baru minimal 8 karakter.'); return;
+    }
+    if (form.password.trim() && !form.currentPassword.trim()) {
+      toast.error('Masukkan password saat ini untuk mengubah password.'); return;
+    }
     setSaving(true);
     try {
       // Only send password if it was filled in
@@ -44,7 +50,10 @@ export default function ProfilePage() {
         phone: form.phone,
         address: form.address,
       };
-      if (form.password.trim()) payload.password = form.password;
+      if (form.password.trim()) {
+        payload.password = form.password;
+        payload.currentPassword = form.currentPassword;
+      }
 
       const res = await fetch(`/api/users/${profile.id}`, {
         method: 'PUT',
@@ -54,7 +63,7 @@ export default function ProfilePage() {
       const data = await res.json();
       if (data.success) {
         setEditing(false);
-        setForm(f => ({ ...f, password: '' }));
+        setForm(f => ({ ...f, password: '', currentPassword: '' }));
         // Re-fetch to get fresh data
         await loadProfile();
         toast.success('Profil berhasil diperbarui.');
@@ -70,7 +79,7 @@ export default function ProfilePage() {
 
   function handleCancelEdit() {
     if (profile) {
-      setForm({ name: profile.name, email: profile.email || '', phone: profile.phone || '', address: profile.address || '', password: '' });
+      setForm({ name: profile.name, email: profile.email || '', phone: profile.phone || '', address: profile.address || '', password: '', currentPassword: '' });
     }
     setEditing(false);
   }
@@ -149,8 +158,14 @@ export default function ProfilePage() {
               <div><label className="label">Alamat</label><textarea className="input" rows={3} value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} /></div>
               <div>
                 <label className="label">Password Baru</label>
-                <input className="input" type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Kosongkan jika tidak diubah" autoComplete="new-password" />
+                <input className="input" type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Kosongkan jika tidak diubah (min. 8 karakter)" autoComplete="new-password" />
               </div>
+              {form.password.trim() && (
+                <div>
+                  <label className="label">Password Saat Ini</label>
+                  <input className="input" type="password" value={form.currentPassword} onChange={e => setForm(f => ({ ...f, currentPassword: e.target.value }))} placeholder="Wajib diisi untuk mengubah password" autoComplete="current-password" />
+                </div>
+              )}
             </>
           ) : (
             <>
