@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
 import { userScopeFilter, audienceUserIds } from '@/lib/rbac';
 import { calculateDistance, getTodayString } from '@/lib/utils';
-import { saveAttendancePhoto, deleteAttendancePhoto, MAX_PHOTO_BYTES } from '@/lib/photos';
+import { saveAttendancePhoto, saveAttendancePhotoWithMeta, deleteAttendancePhoto, MAX_PHOTO_BYTES } from '@/lib/photos';
+import { recordAudit, getClientIp } from '@/lib/audit';
 
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser(req);
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { type, photo, latitude, longitude, address } = body;
+    const { type, photo, latitude, longitude, address, accuracy, capturedAt } = body;
 
     // Input validation
     if (!type || !['checkin', 'checkout'].includes(type)) {
@@ -83,6 +84,23 @@ export async function POST(req: NextRequest) {
         latitude < -90 || latitude > 90 ||
         longitude < -180 || longitude > 180) {
       return badRequest('Koordinat GPS tidak valid. Pastikan GPS aktif dan izin lokasi diberikan.');
+    }
+
+    // GPS accuracy (meters) is optional but must be sane when provided
+    const gpsAccuracy =
+      typeof accuracy === 'number' && isFinite(accuracy) && accuracy >= 0 && accuracy <= 100000
+        ? accuracy
+        : null;
+
+    // Client-reported capture time (ISO). Accept only if plausible: within the
+    // last hour and not in the future, otherwise ignore it.
+    let capturedAtDate: Date | null = null;
+    if (typeof capturedAt === 'string' && capturedAt) {
+      const parsed = new Date(capturedAt);
+      if (!isNaN(parsed.getTime())) {
+        const skew = Date.now() - parsed.getTime();
+        if (skew >= -60_000 && skew <= 60 * 60_000) capturedAtDate = parsed;
+      }
     }
 
     const today = getTodayString();
@@ -116,18 +134,50 @@ export async function POST(req: NextRequest) {
       }
 
       let checkInPhotoKey: string;
+      let checkInHash: string;
       try {
-        checkInPhotoKey = await saveAttendancePhoto(photo, {
+        const saved = await saveAttendancePhotoWithMeta(photo, {
           userId: authUser.userId,
           date: today,
           kind: 'in',
         });
+        checkInPhotoKey = saved.key;
+        checkInHash = saved.hash;
       } catch (err) {
         if ((err as Error).message === 'photo-too-large') {
           return badRequest('Ukuran foto terlalu besar. Maksimal 400KB.');
         }
         return badRequest('Format foto tidak valid.');
       }
+
+      // Reused-photo detection: same bytes already used by this employee, or by
+      // a different employee (strong signal of a shared/replayed selfie).
+      const [sameUserReuse, anyUserReuse] = await Promise.all([
+        prisma.attendance.findFirst({
+          where: { userId: authUser.userId, OR: [{ checkInHash }, { checkOutHash: checkInHash }] },
+          select: { id: true },
+        }),
+        prisma.attendance.findFirst({
+          where: { userId: { not: authUser.userId }, OR: [{ checkInHash }, { checkOutHash: checkInHash }] },
+          select: { id: true },
+        }),
+      ]);
+      const reusedPhoto = sameUserReuse !== null;
+      const duplicateAcrossUsers = anyUserReuse !== null;
+
+      const checkInNotes =
+        [
+          duplicateAcrossUsers
+            ? 'Foto sama dipakai karyawan lain (perlu ditinjau)'
+            : reusedPhoto
+              ? 'Foto identik dengan absen sebelumnya (perlu ditinjau)'
+              : null,
+          gpsAccuracy !== null && gpsAccuracy > 100
+            ? `Akurasi GPS rendah (~${Math.round(gpsAccuracy)} m)`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' | ') || null;
 
       let attendance;
       try {
@@ -140,8 +190,12 @@ export async function POST(req: NextRequest) {
             checkInLat: latitude,
             checkInLng: longitude,
             checkInAddress: address?.trim() || null,
+            checkInAccuracy: gpsAccuracy,
+            checkInCapturedAt: capturedAtDate,
+            checkInHash,
             isOutOfRadius,
             status: 'PRESENT',
+            notes: checkInNotes,
           },
         });
       } catch (e: unknown) {
@@ -153,15 +207,31 @@ export async function POST(req: NextRequest) {
         throw e;
       }
 
+      await recordAudit({
+        actor: authUser,
+        action: 'ATTENDANCE_CHECK_IN',
+        targetType: 'Attendance',
+        targetId: attendance.id,
+        details: { isOutOfRadius, reusedPhoto, duplicateAcrossUsers, gpsAccuracy },
+        ip: getClientIp(req),
+      });
+
       // Notify the whole manager chain (e.g. USER's SPV and MANAGER)
-      if (isOutOfRadius) {
+      if (isOutOfRadius || reusedPhoto || duplicateAcrossUsers) {
         const recipients = await audienceUserIds(authUser.userId);
         if (recipients.length > 0) {
           await prisma.notification.createMany({
             data: recipients.map((recipientId) => ({
               type: 'OUT_OF_RADIUS',
-              title: 'Absen di Luar Radius',
-              message: `${user.name} melakukan absen masuk di luar radius kantor.`,
+              title:
+                duplicateAcrossUsers || reusedPhoto
+                  ? 'Foto Absen Perlu Ditinjau'
+                  : 'Absen di Luar Radius',
+              message: duplicateAcrossUsers
+                ? `${user.name} melakukan absen masuk dengan foto yang sama seperti absen karyawan lain.`
+                : reusedPhoto
+                  ? `${user.name} melakukan absen masuk dengan foto yang identik dengan absen sebelumnya.`
+                  : `${user.name} melakukan absen masuk di luar radius kantor.`,
               recipientId,
               senderId: authUser.userId,
             })),
@@ -211,6 +281,15 @@ export async function POST(req: NextRequest) {
         await deleteAttendancePhoto(checkOutPhotoKey);
         throw err;
       }
+
+      await recordAudit({
+        actor: authUser,
+        action: 'ATTENDANCE_CHECK_OUT',
+        targetType: 'Attendance',
+        targetId: attendance.id,
+        details: { checkOutOutOfRadius, hasFixedHours },
+        ip: getClientIp(req),
+      });
 
       // Check-out geofence alert, unless the employee has no fixed working
       // hours (days-only schedule or no schedule at all) — those are free days.

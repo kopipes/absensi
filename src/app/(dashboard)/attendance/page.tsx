@@ -15,7 +15,7 @@ export default function AttendancePage() {
   const [locating, setLocating] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
-  const [location, setLocation] = useState<{ lat: number; lng: number; address?: string } | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number; address?: string; accuracy?: number } | null>(null);
   const [locationError, setLocationError] = useState('');
   const [todayAttendance, setTodayAttendance] = useState<Attendance | null>(null);
   const [history, setHistory] = useState<Attendance[]>([]);
@@ -89,13 +89,13 @@ export default function AttendancePage() {
     }
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        setLocation({ lat, lng });
+        const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+        setLocation({ lat, lng, accuracy });
         setLocating(false);
         try {
           const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
           const d = await r.json();
-          setLocation({ lat, lng, address: d.display_name?.split(',').slice(0, 3).join(', ') });
+          setLocation({ lat, lng, accuracy, address: d.display_name?.split(',').slice(0, 3).join(', ') });
         } catch { /* ignore */ }
       },
       (err) => {
@@ -194,6 +194,8 @@ export default function AttendancePage() {
           latitude: location.lat,
           longitude: location.lng,
           address: location.address,
+          accuracy: location.accuracy,
+          capturedAt: new Date().toISOString(),
         }),
       });
       const data = await res.json();
