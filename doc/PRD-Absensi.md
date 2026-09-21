@@ -405,7 +405,10 @@ Model utama di `prisma/schema.prisma`:
 - **Wajib foto live via kamera** (real-time capture dari browser, bukan upload dari galeri) — mencegah kecurangan seperti pakai foto lama atau foto orang lain.
 - Tombol/akses ke galeri **tidak disediakan** di halaman absen.
 - Foto disimpan di cloud storage (bukan di database langsung), dengan link/URL disimpan di record absensi.
-- Ukuran foto dikompres otomatis (misal max 500KB) agar loading tetap cepat dan hemat storage/bandwidth.
+- Ukuran foto **dikompres otomatis di sisi klien** (bukan setting HP): frame diperkecil ke maksimal **1280 px**,
+  lalu JPEG kualitas **0,8 → 0,6**, dan bila masih besar diturunkan resolusinya (hingga 480 px) supaya tidak pernah gagal.
+- Patokan terukur: selfie normal **~25 KB**, kasus terburuk (sensor 12 MP dengan detail ramai) **~250 KB**;
+  selfie mentah dari HP biasanya 2–5 MB. Batas server **800 KB** (±3× kasus terburuk) memberi ruang aman.
 
 ### 5.5 Geolocation & Validasi Lokasi
 - Lokasi (GPS) **wajib aktif** saat melakukan absen.

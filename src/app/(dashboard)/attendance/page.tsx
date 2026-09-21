@@ -167,14 +167,49 @@ export default function AttendancePage() {
       ctx.fillText(line, padding, height - barHeight + padding + index * lineHeight, width - padding * 2);
     });
 
-    // Adaptive quality: keep as much detail as possible, only shrink when the file is big
-    const maxBase64Length = 350_000; // ~255 KB binary, under the 400 KB server cap
-    let quality = 0.75;
+    // Adaptive compression: keep as much detail as possible while staying far
+    // below the server cap (800 KB binary ≈ 1090 KB base64). A 350 KB base64
+    // target (~256 KB binary) is used so typical selfies stay small and fast to
+    // upload; quality is lowered first, then the frame is downscaled if needed.
+    const maxBase64Length = 350_000; // ~256 KB binary — well under the 800 KB cap
+    let quality = 0.8;
     let dataUrl = canvas.toDataURL('image/jpeg', quality);
-    while (dataUrl.length > maxBase64Length && quality > 0.55) {
+
+    while (dataUrl.length > maxBase64Length && quality > 0.6) {
       quality = Math.round((quality - 0.05) * 100) / 100;
       dataUrl = canvas.toDataURL('image/jpeg', quality);
     }
+
+    // Still too big at minimum quality → downscale step by step (max 3 passes).
+    for (let shrink = 0.8; shrink >= 0.5 && dataUrl.length > maxBase64Length; shrink -= 0.15) {
+      const w = Math.max(640, Math.round(width * shrink));
+      const h = Math.max(480, Math.round((height / width) * w));
+      const shrunk = document.createElement('canvas');
+      shrunk.width = w;
+      shrunk.height = h;
+      const sctx = shrunk.getContext('2d');
+      if (!sctx) break;
+      sctx.drawImage(canvas, 0, 0, w, h);
+      dataUrl = shrunk.toDataURL('image/jpeg', 0.7);
+      if (dataUrl.length > maxBase64Length) {
+        dataUrl = shrunk.toDataURL('image/jpeg', 0.6);
+      }
+    }
+
+    // Absolute last resort so the server never rejects an attendance photo.
+    if (dataUrl.length > 1_090_000) {
+      const w = 480;
+      const h = Math.max(360, Math.round((height / width) * w));
+      const tiny = document.createElement('canvas');
+      tiny.width = w;
+      tiny.height = h;
+      const tctx = tiny.getContext('2d');
+      if (tctx) {
+        tctx.drawImage(canvas, 0, 0, w, h);
+        dataUrl = tiny.toDataURL('image/jpeg', 0.5);
+      }
+    }
+
     return dataUrl;
   }
 

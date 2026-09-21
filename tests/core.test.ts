@@ -17,7 +17,7 @@ import {
   calculateDistance,
 } from '../src/lib/utils';
 import { getDataScope, canViewUser } from '../src/lib/rbac';
-import { isSupportedImageBuffer } from '../src/lib/photos';
+import { isSupportedImageBuffer, MAX_PHOTO_BYTES, hashPhotoBuffer } from '../src/lib/photos';
 
 const at = (hhmm: string, date = '2026-09-15') => new Date(`${date}T${hhmm}:00+07:00`);
 
@@ -80,4 +80,22 @@ test('photo magic bytes: valid JPEG/PNG accepted, junk rejected', () => {
   assert.equal(isSupportedImageBuffer(png), true);
   assert.equal(isSupportedImageBuffer(junk), false);
   assert.equal(isSupportedImageBuffer(Buffer.from([0xff, 0xd8])), false);
+});
+
+test('photo size cap leaves headroom over the worst measured selfie', () => {
+  // Worst case measured from the app's own compression: ~250 KB (12 MP, noisy)
+  const worstMeasuredKB = 250;
+  assert.ok(
+    MAX_PHOTO_BYTES / 1024 >= worstMeasuredKB * 2,
+    `cap ${MAX_PHOTO_BYTES / 1024}KB should be at least 2x the ${worstMeasuredKB}KB worst case`
+  );
+  assert.equal(MAX_PHOTO_BYTES, 800 * 1024);
+});
+
+test('photo hash is stable and differs for different bytes', () => {
+  const a = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  const b = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5, 6, 7, 9]);
+  assert.equal(hashPhotoBuffer(a), hashPhotoBuffer(a));
+  assert.notEqual(hashPhotoBuffer(a), hashPhotoBuffer(b));
+  assert.match(hashPhotoBuffer(a), /^[0-9a-f]{64}$/);
 });

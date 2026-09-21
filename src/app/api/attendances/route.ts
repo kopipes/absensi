@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getAuthUser, ok, unauthorized, forbidden, badRequest, serverError } from '@/lib/api';
 import { userScopeFilter, audienceUserIds } from '@/lib/rbac';
 import { calculateDistance, getTodayString } from '@/lib/utils';
-import { saveAttendancePhoto, saveAttendancePhotoWithMeta, deleteAttendancePhoto, MAX_PHOTO_BYTES } from '@/lib/photos';
+import { saveAttendancePhotoWithMeta, deleteAttendancePhoto, MAX_PHOTO_BYTES } from '@/lib/photos';
 import { recordAudit, getClientIp } from '@/lib/audit';
 
 export async function GET(req: NextRequest) {
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       return badRequest('Format foto tidak valid.');
     }
     if (photo.length > MAX_PHOTO_BYTES * 1.4) { // base64 overhead
-      return badRequest('Ukuran foto terlalu besar. Maksimal 400KB.');
+      return badRequest(`Ukuran foto terlalu besar. Maksimal ${Math.round(MAX_PHOTO_BYTES / 1024)}KB.`);
     }
     if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
         isNaN(latitude) || isNaN(longitude) ||
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
         checkInHash = saved.hash;
       } catch (err) {
         if ((err as Error).message === 'photo-too-large') {
-          return badRequest('Ukuran foto terlalu besar. Maksimal 400KB.');
+          return badRequest(`Ukuran foto terlalu besar. Maksimal ${Math.round(MAX_PHOTO_BYTES / 1024)}KB.`);
         }
         return badRequest('Format foto tidak valid.');
       }
@@ -250,18 +250,55 @@ export async function POST(req: NextRequest) {
       if (existing.checkOut) return badRequest('Anda sudah melakukan absen pulang hari ini.');
 
       let checkOutPhotoKey: string;
+      let checkOutHash: string;
       try {
-        checkOutPhotoKey = await saveAttendancePhoto(photo, {
+        const saved = await saveAttendancePhotoWithMeta(photo, {
           userId: authUser.userId,
           date: today,
           kind: 'out',
         });
+        checkOutPhotoKey = saved.key;
+        checkOutHash = saved.hash;
       } catch (err) {
         if ((err as Error).message === 'photo-too-large') {
-          return badRequest('Ukuran foto terlalu besar. Maksimal 400KB.');
+          return badRequest(`Ukuran foto terlalu besar. Maksimal ${Math.round(MAX_PHOTO_BYTES / 1024)}KB.`);
         }
         return badRequest('Format foto tidak valid.');
       }
+
+      // Reused-photo detection on check-out too: same selfie as an earlier
+      // check-in/out (own) or as another employee's (shared/replayed evidence).
+      const [ownReuse, crossReuse, sameDayReuse] = await Promise.all([
+        prisma.attendance.findFirst({
+          where: {
+            userId: authUser.userId,
+            id: { not: existing.id },
+            OR: [{ checkInHash: checkOutHash }, { checkOutHash }],
+          },
+          select: { id: true },
+        }),
+        prisma.attendance.findFirst({
+          where: {
+            userId: { not: authUser.userId },
+            OR: [{ checkInHash: checkOutHash }, { checkOutHash }],
+          },
+          select: { id: true },
+        }),
+        prisma.attendance.findFirst({
+          where: { id: existing.id, checkInHash: checkOutHash },
+          select: { id: true },
+        }),
+      ]);
+      const reusedPhoto = ownReuse !== null || sameDayReuse !== null;
+      const duplicateAcrossUsers = crossReuse !== null;
+      const reuseNote =
+        duplicateAcrossUsers
+          ? 'Foto pulang sama dipakai karyawan lain (perlu ditinjau)'
+          : reusedPhoto
+            ? 'Foto pulang identik dengan absen sebelumnya (perlu ditinjau)'
+            : null;
+      const mergedNotes =
+        [existing.notes, reuseNote].filter(Boolean).join(' | ').slice(0, 500) || null;
 
       let attendance;
       try {
@@ -275,6 +312,10 @@ export async function POST(req: NextRequest) {
             checkOutAddress: address?.trim() || null,
             isAutoCheckout: false,
             checkOutOutOfRadius,
+            checkOutAccuracy: gpsAccuracy,
+            checkOutCapturedAt: capturedAtDate,
+            checkOutHash,
+            notes: mergedNotes,
           },
         });
       } catch (err) {
@@ -287,20 +328,25 @@ export async function POST(req: NextRequest) {
         action: 'ATTENDANCE_CHECK_OUT',
         targetType: 'Attendance',
         targetId: attendance.id,
-        details: { checkOutOutOfRadius, hasFixedHours },
+        details: { checkOutOutOfRadius, hasFixedHours, reusedPhoto, duplicateAcrossUsers, gpsAccuracy },
         ip: getClientIp(req),
       });
 
-      // Check-out geofence alert, unless the employee has no fixed working
-      // hours (days-only schedule or no schedule at all) — those are free days.
-      if (checkOutOutOfRadius && hasFixedHours) {
+      // Alerts: geofence (unless no fixed hours) and/or suspicious photo reuse.
+      const needsNotification = (checkOutOutOfRadius && hasFixedHours) || reusedPhoto || duplicateAcrossUsers;
+      if (needsNotification) {
         const recipients = await audienceUserIds(authUser.userId);
         if (recipients.length > 0) {
+          const suspicious = duplicateAcrossUsers || reusedPhoto;
           await prisma.notification.createMany({
             data: recipients.map((recipientId) => ({
               type: 'OUT_OF_RADIUS',
-              title: 'Absen Pulang di Luar Radius',
-              message: `${user.name} melakukan absen pulang di luar radius kantor.`,
+              title: suspicious ? 'Foto Absen Perlu Ditinjau' : 'Absen Pulang di Luar Radius',
+              message: duplicateAcrossUsers
+                ? `${user.name} melakukan absen pulang dengan foto yang sama seperti absen karyawan lain.`
+                : reusedPhoto
+                  ? `${user.name} melakukan absen pulang dengan foto yang identik dengan absen sebelumnya.`
+                  : `${user.name} melakukan absen pulang di luar radius kantor.`,
               recipientId,
               senderId: authUser.userId,
             })),

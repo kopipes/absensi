@@ -87,7 +87,7 @@ const sections = [
       </ul>
       <div class="warn">
         <strong>Wajib foto:</strong> absen masuk dan pulang <strong>tidak dapat dilakukan tanpa selfie</strong>.
-        Foto divalidasi di server (format &amp; ukuran maksimal 400 KB) dan diperiksa keasliannya.
+        Kompresi dan validasi foto dilakukan <strong>otomatis di aplikasi</strong> (1280 px, JPEG adaptif, maksimal 800 KB) — <strong>tidak perlu setting apa pun di HP</strong>.
       </div>
       <h3>Jika di luar radius kantor</h3>
       <ul>
@@ -385,7 +385,7 @@ const sections = [
           <tr><td>Hari cutoff</td><td>Tidak dihitung cukup/kurang; masuk kolom <strong>Cutoff</strong></td></tr>
           <tr><td>Belum Lengkap</td><td>Ada jam masuk, jam pulang kosong</td></tr>
           <tr><td>Absen pulang</td><td>Hanya untuk hari ini; setelah tengah malam lewat <strong>koreksi</strong></td></tr>
-          <tr><td>Foto</td><td><strong>Wajib</strong> saat masuk &amp; pulang; maksimal 400 KB; divalidasi server</td></tr>
+          <tr><td>Foto</td><td><strong>Wajib</strong> saat masuk &amp; pulang; maksimal 800 KB; divalidasi server</td></tr>
           <tr><td>Radius</td><td>Divalidasi saat masuk &amp; pulang; tidak memblokir, hanya menandai + notifikasi</td></tr>
           <tr><td>Jam kerja bebas</td><td>Jadwal tanpa jam / tanpa jadwal → tidak ada notifikasi radius saat pulang</td></tr>
           <tr><td>Notifikasi</td><td>Naik ke seluruh rantai atasan (karyawan → SPV → Manager); Admin melihat semua</td></tr>
@@ -449,7 +449,7 @@ const contentHtml = sections
       .map(
         (shot, i) => `
         <figure>
-          <img src="${embeds.get(shot)}" alt="${s.title}" loading="lazy" />
+          <img src="${embeds.get(shot)}" alt="${s.title}" />
           <figcaption>${(s.shotsLabel && s.shotsLabel[i]) || s.title}</figcaption>
         </figure>`
       )

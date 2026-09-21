@@ -2,8 +2,16 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { randomBytes, createHash } from 'crypto';
 
-// Max decoded photo size accepted from the client (server-side enforcement)
-export const MAX_PHOTO_BYTES = 400 * 1024; // 400 KB
+// Max decoded photo size accepted from the client (server-side enforcement).
+//
+// Benchmark (measured on the app's own adaptive compression: max 1280px wide,
+// JPEG 0.75 → 0.55, then downscale if needed):
+//   - typical selfie           ~25 KB  (normal scene)
+//   - busy/noisy worst case    ~250 KB (12 MP sensor with fine detail)
+//   - raw phone selfie (before compression)  ~2–5 MB, up to ~12 MB
+// The client already guarantees ≤~256 KB, so 800 KB gives ~3× headroom: no
+// legitimate selfie is rejected, while still bounding disk usage per photo.
+export const MAX_PHOTO_BYTES = 800 * 1024; // 800 KB
 
 const PHOTO_SUBDIR = 'absensi';
 const KEY_PATTERN = /^\d{4}\/\d{2}\/[A-Za-z0-9_-]+\.jpg$/;

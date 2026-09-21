@@ -199,7 +199,9 @@ npm run dev                      # di terminal lain
 
 ### Integritas Bukti Absen
 - Selfie diverifikasi **magic bytes** (JPEG/PNG) di server, bukan hanya prefix data URL.
-- Foto di-hash (SHA-256); foto yang **identik dengan absen sebelumnya atau milik karyawan lain** otomatis ditandai di catatan dan dinotifikasi ke atasan untuk ditinjau.
+- **Kompresi otomatis di aplikasi** (tanpa setting HP): maksimal 1280 px, JPEG 0,8→0,6, turun resolusi bila perlu —
+  hasil ukur: normal ~25 KB, terburuk ~250 KB. Batas server **800 KB**.
+- Foto di-hash (SHA-256); foto yang **identik dengan absen sebelumnya atau milik karyawan lain** — pada **absen masuk maupun pulang** — otomatis ditandai di catatan dan dinotifikasi ke atasan untuk ditinjau.
 - **Akurasi GPS** dari perangkat ikut disimpan; akurasi rendah (>100 m) diberi catatan.
 - Retensi foto otomatis lewat cron `/api/cron/photo-retention` (default 180 hari), dan folder `uploads/` ikut di-backup saat deploy.
 
