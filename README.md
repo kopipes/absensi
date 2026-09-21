@@ -124,7 +124,10 @@ prisma/
 ├── schema.prisma              # Database schema
 └── seed.ts                    # Data seeder
 doc/
-└── PRD-Absensi.md            # Product Requirements Document
+├── PRD-Absensi.md            # Product Requirements Document
+└── userguide.html            # Panduan pengguna (HTML mandiri, siap dibuka)
+scripts/
+└── build-userguide.sh        # Regenerasi doc/userguide.html + screenshots
 ```
 
 ---
@@ -138,6 +141,24 @@ npm run db:generate  # Generate Prisma client
 npm run db:push      # Push schema ke database
 npm run db:seed      # Seed data demo
 npm run db:studio    # Prisma Studio (GUI database)
+npm test             # Test inti (aturan jam kerja, geofence, RBAC, foto, dll.)
+./scripts/build-userguide.sh   # Regenerate panduan pengguna (doc/userguide.html)
+```
+
+---
+
+## Panduan Pengguna
+
+Panduan pengguna lengkap (per peran: Karyawan, SPV, Manager, Admin) tersedia sebagai **satu file HTML
+mandiri**: [`doc/userguide.html`](doc/userguide.html) — cukup dibuka di browser, tanpa server dan tanpa
+folder aset (semua screenshot ter-embed). Berisi menu di sisi kiri yang bisa diklik, pencarian, tombol
+Cetak/PDF, dan tangkapan layar tiap halaman.
+
+Untuk membuat ulang setelah UI berubah (aplikasi harus sedang berjalan; butuh Google Chrome):
+
+```bash
+npm run dev                      # di terminal lain
+./scripts/build-userguide.sh     # atau: BASE=http://localhost:3100 ./scripts/build-userguide.sh
 ```
 
 ---
