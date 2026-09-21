@@ -9,8 +9,21 @@ export async function GET(req: NextRequest) {
   if (!['ADMIN', 'MANAGER', 'SPV'].includes(authUser.role)) return forbidden();
 
   const scope = userScopeFilter(authUser.role, authUser.userId);
+
+  // Optional status filter: the UI tabs ("Menunggu" / "Disetujui" / "Ditolak")
+  // must narrow the list, otherwise every tab shows the same rows.
+  const { searchParams } = new URL(req.url);
+  const status = searchParams.get('status') || '';
+  const VALID_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'];
+  if (status && !VALID_STATUSES.includes(status)) {
+    return badRequest('Status tidak valid.');
+  }
+
   const corrections = await prisma.attendanceCorrection.findMany({
-    where: scope ? { attendance: { user: scope } } : {},
+    where: {
+      ...(status ? { status } : {}),
+      ...(scope ? { attendance: { user: scope } } : {}),
+    },
     include: {
       requestedBy: { select: { id: true, name: true, nik: true, department: true } },
       approvedBy: { select: { id: true, name: true } },

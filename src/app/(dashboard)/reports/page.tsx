@@ -64,6 +64,7 @@ export default function ReportsPage() {
         endDate,
         page: String(targetPage),
         pageSize: String(PAGE_SIZE),
+        view,
       });
       if (department) params.set('department', department);
       if (search.trim()) params.set('search', search.trim());
@@ -84,7 +85,7 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, department, search]);
+  }, [startDate, endDate, department, search, view]);
 
   // Debounced reload whenever any filter changes (also covers initial load)
   useEffect(() => {
