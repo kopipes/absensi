@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { User, Edit2, Save, X, LogOut } from 'lucide-react';
+import { User, Edit2, Save, X, LogOut, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getRoleLabel } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
@@ -186,6 +186,10 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
+
+      <a href="/guide" target="_blank" rel="noreferrer" className="btn-secondary w-full btn-lg">
+        <BookOpen size={18} /> Panduan Pengguna
+      </a>
 
       <button onClick={handleLogout} className="btn-danger w-full btn-lg" aria-label="Keluar dari aplikasi">
         <LogOut size={18} /> Keluar

@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Clock, Users, BarChart3, Settings,
   Fingerprint, CalendarDays, MapPin, Bell, LogOut, ChevronRight,
-  Building2, Edit2, ShieldCheck, ChevronDown, Camera, ScrollText
+  Building2, Edit2, ShieldCheck, ChevronDown, Camera, ScrollText, BookOpen
 } from 'lucide-react';
 import { cn, getRoleLabel, getRoleBadgeColor } from '@/lib/utils';
 import type { JWTPayload } from '@/lib/auth';
@@ -181,6 +181,15 @@ export default function Sidebar({ user }: { user: JWTPayload }) {
           <Bell size={18} className={pathname === '/notifications' ? 'text-brand-500' : 'text-slate-400'} />
           Notifikasi
         </Link>
+        <a
+          href="/guide"
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-gray-50 hover:text-slate-900 transition-all"
+        >
+          <BookOpen size={18} className="text-slate-400" />
+          Panduan Pengguna
+        </a>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all"

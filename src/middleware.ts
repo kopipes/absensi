@@ -30,6 +30,11 @@ export async function middleware(req: NextRequest) {
   );
   if (isPublic) return NextResponse.next();
 
+  // Allow the publishable user guide (served as a static file from /public)
+  if (pathname === '/guide' || pathname.startsWith('/guide/')) {
+    return NextResponse.next();
+  }
+
   // Require auth token
   const token = req.cookies.get('absensi_token')?.value;
   if (!token) {

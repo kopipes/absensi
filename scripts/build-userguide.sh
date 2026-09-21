@@ -35,4 +35,10 @@ BASE="$BASE" node capture.mjs
 echo "==> Building self-contained guide"
 node build-guide.mjs "$ROOT/doc/userguide.html"
 
-echo "==> Done: $ROOT/doc/userguide.html"
+# Publish the same file so it is reachable at <app>/guide (allowed in middleware).
+mkdir -p "$ROOT/public/guide"
+cp "$ROOT/doc/userguide.html" "$ROOT/public/guide/index.html"
+
+echo "==> Done:"
+echo "    $ROOT/doc/userguide.html          (repo copy)"
+echo "    $ROOT/public/guide/index.html     (served at /guide)"
